@@ -18,11 +18,13 @@ import {
   User,
   Settings,
   Bell,
-  Heart
+  Heart,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ECGViewerPage, type ECGRecord as ViewerECGRecord, type ECGMeasurements } from '@/components/ecg-viewer';
 import type { UserSession } from '@/App';
 
 interface DashboardProps {
@@ -30,16 +32,21 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-// Types
+// Types pour le Dashboard
 interface ECGRecord {
   id: string;
   patientName: string;
+  patientAge: number;
   gender: 'M' | 'F';
   medicalCenter: string;
   date: string;
   status: 'pending' | 'analyzing' | 'completed';
   viewed: boolean;
   referringDoctor: string;
+  priority: 'normal' | 'urgent' | 'critical';
+  clinicalContext?: string;
+  symptoms?: string;
+  medications?: string;
 }
 
 interface Hospital {
@@ -48,57 +55,77 @@ interface Hospital {
   pendingCount: number;
 }
 
-// Données de démonstration
+// Données de démonstration enrichies
 const mockRecords: ECGRecord[] = [
   {
     id: 'ECG-2024-0409',
     patientName: 'Pierre Dupont',
+    patientAge: 67,
     gender: 'M',
     medicalCenter: 'Hôpital Saint-Louis',
-    date: '2024-12-25',
+    date: '2024-12-25T09:30:00',
     status: 'pending',
     viewed: false,
-    referringDoctor: 'Dr. Jean Martin'
+    referringDoctor: 'Dr. Jean Martin',
+    priority: 'urgent',
+    symptoms: 'Douleur thoracique, dyspnée',
+    clinicalContext: 'ATCD: HTA, diabète type 2',
+    medications: 'Metformine 1000mg, Ramipril 5mg'
   },
   {
     id: 'ECG-2024-0408',
     patientName: 'Marie Laurent',
+    patientAge: 45,
     gender: 'F',
     medicalCenter: 'Clinique du Sport',
-    date: '2024-12-25',
+    date: '2024-12-25T08:15:00',
     status: 'analyzing',
     viewed: true,
-    referringDoctor: 'Dr. Sophie Bernard'
+    referringDoctor: 'Dr. Sophie Bernard',
+    priority: 'normal',
+    symptoms: 'Palpitations à l\'effort',
+    clinicalContext: 'Bilan avant reprise sportive'
   },
   {
     id: 'ECG-2024-0407',
     patientName: 'Jean-Paul Mercier',
+    patientAge: 72,
     gender: 'M',
     medicalCenter: 'Centre Cardio Paris',
-    date: '2024-12-24',
+    date: '2024-12-24T16:45:00',
     status: 'completed',
     viewed: true,
-    referringDoctor: 'Dr. François Dubois'
+    referringDoctor: 'Dr. François Dubois',
+    priority: 'normal',
+    clinicalContext: 'Contrôle post-angioplastie'
   },
   {
     id: 'ECG-2024-0406',
     patientName: 'Élise Moreau',
+    patientAge: 55,
     gender: 'F',
     medicalCenter: 'Hôpital Saint-Louis',
-    date: '2024-12-24',
+    date: '2024-12-24T14:20:00',
     status: 'pending',
     viewed: false,
-    referringDoctor: 'Dr. Jean Martin'
+    referringDoctor: 'Dr. Jean Martin',
+    priority: 'critical',
+    symptoms: 'Syncope, malaise lipothymique',
+    clinicalContext: 'ATCD: BAV 1, insuffisance cardiaque',
+    medications: 'Bisoprolol 2.5mg, Furosémide 40mg'
   },
   {
     id: 'ECG-2024-0405',
     patientName: 'Robert Petit',
+    patientAge: 58,
     gender: 'M',
     medicalCenter: 'Institut Cœur Paris',
-    date: '2024-12-23',
+    date: '2024-12-23T11:00:00',
     status: 'completed',
     viewed: true,
-    referringDoctor: 'Dr. Claire Leroy'
+    referringDoctor: 'Dr. Claire Leroy',
+    priority: 'normal',
+    clinicalContext: 'Bilan pré-opératoire chirurgie orthopédique'
   }
 ];
 
@@ -116,17 +143,47 @@ const stats = {
   month: { received: 1234, analyzed: 1200, sent: 1180 }
 };
 
+// Convertir record Dashboard vers format Viewer
+function toViewerRecord(record: ECGRecord): ViewerECGRecord {
+  return {
+    id: record.id,
+    referenceNumber: record.id,
+    patientName: record.patientName,
+    patientAge: record.patientAge,
+    patientGender: record.gender,
+    patientBirthDate: new Date(new Date().getFullYear() - record.patientAge, 0, 1).toISOString(),
+    medicalCenter: record.medicalCenter,
+    referringDoctor: record.referringDoctor,
+    acquisitionDate: record.date,
+    clinicalContext: record.clinicalContext,
+    symptoms: record.symptoms,
+    medications: record.medications,
+    status: record.status === 'completed' ? 'validated' : record.status === 'analyzing' ? 'in_progress' : 'pending',
+    priority: record.priority
+  };
+}
+
 export function Dashboard({ user, onLogout }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHospital, setSelectedHospital] = useState<string | null>(null);
   const [statsTimeframe, setStatsTimeframe] = useState<'today' | 'week' | 'month'>('today');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  
+  // État pour le visualiseur ECG
+  const [selectedECG, setSelectedECG] = useState<ECGRecord | null>(null);
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('fr-FR', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
+    });
+  };
+
+  const formatTime = (date: string) => {
+    return new Date(date).toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -148,12 +205,66 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     );
   };
 
+  const getPriorityIndicator = (priority: ECGRecord['priority']) => {
+    if (priority === 'normal') return null;
+    const styles = {
+      urgent: 'bg-red-100 text-red-700 border-red-200',
+      critical: 'bg-red-600 text-white animate-pulse'
+    };
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${styles[priority]}`}>
+        <Zap className="h-3 w-3 mr-0.5" />
+        {priority}
+      </span>
+    );
+  };
+
   const filteredRecords = mockRecords.filter(record =>
     record.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     record.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalPending = mockHospitals.reduce((sum, h) => sum + h.pendingCount, 0);
+
+  // Handler pour ouvrir le visualiseur
+  const handleOpenViewer = (record: ECGRecord) => {
+    setSelectedECG(record);
+  };
+
+  // Handler pour fermer le visualiseur
+  const handleCloseViewer = () => {
+    setSelectedECG(null);
+  };
+
+  // Handler pour valider un ECG
+  const handleValidateECG = (record: ViewerECGRecord, measurements: ECGMeasurements, interpretation: string) => {
+    console.log('ECG validé:', { record, measurements, interpretation });
+    // Ici on pourrait mettre à jour le statut localement
+  };
+
+  // Handler pour naviguer entre les ECG
+  const handleNavigateECG = (record: ViewerECGRecord) => {
+    const dashboardRecord = mockRecords.find(r => r.id === record.id);
+    if (dashboardRecord) {
+      setSelectedECG(dashboardRecord);
+    }
+  };
+
+  // Si un ECG est sélectionné, afficher le visualiseur
+  if (selectedECG) {
+    const viewerRecords = mockRecords.map(toViewerRecord);
+    const currentViewerRecord = toViewerRecord(selectedECG);
+    
+    return (
+      <ECGViewerPage
+        record={currentViewerRecord}
+        records={viewerRecords}
+        onClose={handleCloseViewer}
+        onValidate={handleValidateECG}
+        onNavigate={handleNavigateECG}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -304,7 +415,7 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
               <AlertCircle className="h-4 w-4 text-red-500" />
               <span>ECG urgents</span>
               <span className="ml-auto text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
-                3
+                {mockRecords.filter(r => r.priority !== 'normal').length}
               </span>
             </button>
 
@@ -399,9 +510,8 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   <tr className="bg-gray-50/50 border-b">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">ID</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Patient</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Sexe</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Établissement</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Date</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Date / Heure</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Statut</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600">Actions</th>
                   </tr>
@@ -410,39 +520,56 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
                   {filteredRecords.map((record) => (
                     <tr 
                       key={record.id} 
-                      className="border-b hover:bg-indigo-50/30 cursor-pointer transition-colors"
+                      className={`border-b hover:bg-indigo-50/30 cursor-pointer transition-colors ${
+                        record.priority === 'critical' ? 'bg-red-50/50' : 
+                        record.priority === 'urgent' ? 'bg-amber-50/30' : ''
+                      }`}
+                      onClick={() => handleOpenViewer(record)}
                     >
                       <td className="px-4 py-3">
-                        <span className="text-indigo-600 font-medium text-sm hover:underline">
-                          {record.id}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-sm text-gray-900">
-                        {record.patientName}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-indigo-600 font-medium text-sm hover:underline">
+                            {record.id}
+                          </span>
+                          {getPriorityIndicator(record.priority)}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-medium ${
-                          record.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
-                        }`}>
-                          {record.gender}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium ${
+                            record.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                          }`}>
+                            {record.gender}
+                          </span>
+                          <div>
+                            <p className="font-medium text-sm text-gray-900">{record.patientName}</p>
+                            <p className="text-xs text-gray-500">{record.patientAge} ans</p>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {record.medicalCenter}
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="text-sm text-gray-700">{record.medicalCenter}</p>
+                          <p className="text-xs text-gray-400">{record.referringDoctor}</p>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDate(record.date)}
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="text-sm text-gray-700">{formatDate(record.date)}</p>
+                          <p className="text-xs text-gray-400">{formatTime(record.date)}</p>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {getStatusBadge(record.status)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-center gap-1">
+                        <div className="flex justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 hover:bg-indigo-100"
                             title="Ouvrir l'ECG"
+                            onClick={() => handleOpenViewer(record)}
                           >
                             <FileText className="h-4 w-4 text-indigo-600" />
                           </Button>
@@ -501,4 +628,3 @@ export function Dashboard({ user, onLogout }: DashboardProps) {
     </div>
   );
 }
-
