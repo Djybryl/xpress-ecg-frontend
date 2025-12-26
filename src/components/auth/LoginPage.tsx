@@ -8,9 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => void;
+  onForgotPassword?: () => void;
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -161,6 +162,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     </Label>
                     <button
                       type="button"
+                      onClick={onForgotPassword}
                       className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                     >
                       Mot de passe oublié ?
