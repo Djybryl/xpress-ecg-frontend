@@ -5,14 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      fastRefresh: true,
-      babel: {
-        babelrc: false,
-        configFile: false
-      }
-    }),
+    react(),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
