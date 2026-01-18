@@ -4,31 +4,31 @@ import {
   ArrowLeft,
   User,
   Building2,
-  Clock,
-  AlertCircle,
+  Calendar,
   Save,
   Send,
   ZoomIn,
   ZoomOut,
-  RotateCw,
+  Move,
   Ruler,
-  Heart,
-  Activity,
-  FileText,
-  CheckCircle2,
-  Plus,
-  X,
+  Grid3X3,
+  RotateCcw,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Printer,
+  Users,
+  Sparkles,
   ChevronDown,
-  ChevronUp,
-  Lightbulb
+  AlertTriangle
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -43,26 +43,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { 
   useCardiologueStore, 
-  conclusionTemplates, 
-  findingsTemplates,
+  conclusionTemplates,
   type ECGMeasurements,
   type ECGInterpretation 
 } from '@/stores/useCardiologueStore';
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, formatDistanceToNow } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -70,14 +58,21 @@ export function AnalyzeECG() {
   const { ecgId } = useParams<{ ecgId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getById, saveMeasurements, completeAnalysis, startAnalysis } = useCardiologueStore();
+  const { getById, getPending, saveMeasurements, completeAnalysis, startAnalysis } = useCardiologueStore();
 
   const [ecg, setEcg] = useState(ecgId ? getById(ecgId) : null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [activeTab, setActiveTab] = useState('measurements');
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [activeTool, setActiveTool] = useState<'move' | 'caliper'>('move');
+  const [showGrid, setShowGrid] = useState(true);
+  const [speed, setSpeed] = useState<25 | 50>(25);
+  const [amplitude, setAmplitude] = useState<5 | 10 | 20>(10);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [findingsOpen, setFindingsOpen] = useState(true);
   
+  // Navigation entre ECG
+  const pendingECGs = getPending();
+  const currentIndex = pendingECGs.findIndex(e => e.id === ecgId);
+  const totalECGs = pendingECGs.length;
+
   // Mesures
   const [measurements, setMeasurements] = useState<ECGMeasurements>({
     heartRate: ecg?.measurements?.heartRate || undefined,
@@ -90,12 +85,7 @@ export function AnalyzeECG() {
   });
 
   // Interprétation
-  const [selectedFindings, setSelectedFindings] = useState<string[]>(
-    ecg?.interpretation?.findings || []
-  );
-  const [customFinding, setCustomFinding] = useState('');
-  const [conclusion, setConclusion] = useState(ecg?.interpretation?.conclusion || '');
-  const [recommendations, setRecommendations] = useState(ecg?.interpretation?.recommendations || '');
+  const [interpretation, setInterpretation] = useState(ecg?.interpretation?.conclusion || '');
   const [isNormal, setIsNormal] = useState(ecg?.interpretation?.isNormal ?? true);
 
   useEffect(() => {
@@ -117,7 +107,7 @@ export function AnalyzeECG() {
     }
   }, [ecgId]);
 
-  // Calcul automatique du QTc (formule de Bazett)
+  // Calcul automatique du QTc
   useEffect(() => {
     if (measurements.qtInterval && measurements.heartRate) {
       const rr = 60 / measurements.heartRate;
@@ -126,27 +116,17 @@ export function AnalyzeECG() {
     }
   }, [measurements.qtInterval, measurements.heartRate]);
 
-  const handleAddFinding = (finding: string) => {
-    if (!selectedFindings.includes(finding)) {
-      setSelectedFindings([...selectedFindings, finding]);
-    }
-  };
-
-  const handleRemoveFinding = (finding: string) => {
-    setSelectedFindings(selectedFindings.filter(f => f !== finding));
-  };
-
-  const handleAddCustomFinding = () => {
-    if (customFinding.trim() && !selectedFindings.includes(customFinding.trim())) {
-      setSelectedFindings([...selectedFindings, customFinding.trim()]);
-      setCustomFinding('');
+  const handleNavigate = (direction: 'prev' | 'next') => {
+    const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex >= 0 && newIndex < totalECGs) {
+      navigate(`/cardiologue/analyze/${pendingECGs[newIndex].id}`);
     }
   };
 
   const handleApplyTemplate = (templateId: string) => {
     const template = conclusionTemplates.find(t => t.id === templateId);
     if (template) {
-      setConclusion(template.text);
+      setInterpretation(template.text);
       setIsNormal(template.isNormal);
     }
   };
@@ -156,512 +136,465 @@ export function AnalyzeECG() {
       saveMeasurements(ecgId, measurements);
       toast({
         title: "Sauvegardé",
-        description: "Les mesures ont été enregistrées."
+        description: "Les données ont été enregistrées."
       });
     }
   };
 
   const handleComplete = () => {
-    if (!conclusion.trim()) {
+    if (!interpretation.trim()) {
       toast({
-        title: "Conclusion requise",
-        description: "Veuillez rédiger une conclusion avant de finaliser.",
+        title: "Interprétation requise",
+        description: "Veuillez rédiger une interprétation avant de valider.",
         variant: "destructive"
       });
       return;
     }
-
-    if (selectedFindings.length === 0) {
-      toast({
-        title: "Constatations requises",
-        description: "Veuillez sélectionner au moins une constatation.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setConfirmDialogOpen(true);
   };
 
   const confirmComplete = () => {
     if (ecgId) {
-      const interpretation: ECGInterpretation = {
-        findings: selectedFindings,
-        conclusion: conclusion,
-        recommendations: recommendations || undefined,
+      const interp: ECGInterpretation = {
+        findings: [],
+        conclusion: interpretation,
         isNormal: isNormal,
       };
-
-      completeAnalysis(ecgId, interpretation);
-      
+      completeAnalysis(ecgId, interp);
       toast({
-        title: "Analyse terminée",
-        description: "Le rapport a été envoyé pour distribution."
+        title: "ECG validé",
+        description: "Le rapport a été envoyé."
       });
-
-      navigate('/cardiologue/pending');
+      // Naviguer vers le prochain ECG ou retour
+      if (currentIndex < totalECGs - 1) {
+        navigate(`/cardiologue/analyze/${pendingECGs[currentIndex + 1].id}`);
+      } else {
+        navigate('/cardiologue');
+      }
     }
     setConfirmDialogOpen(false);
+  };
+
+  // Raccourcis clavier pour l'interprétation
+  const handleInterpretationKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      handleComplete();
+    }
+  };
+
+  // Insertion de phrases rapides
+  const insertQuickPhrase = (phrase: string) => {
+    setInterpretation(prev => prev ? `${prev}\n${phrase}` : phrase);
   };
 
   if (!ecg) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500">Chargement de l'ECG...</p>
-        </div>
+        <div className="animate-pulse text-gray-400">Chargement...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between sticky top-0 bg-background z-10 py-2 border-b">
+    <div className="h-full flex flex-col bg-gray-50">
+      {/* Header compact */}
+      <header className="bg-white border-b border-border/60 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate('/cardiologue/pending')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+          <Button variant="ghost" size="sm" onClick={() => navigate('/cardiologue')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
             Retour
           </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">{ecg.id}</h1>
-              {ecg.urgency === 'urgent' && (
-                <Badge className="bg-red-100 text-red-700 animate-pulse">URGENT</Badge>
-              )}
-            </div>
-            <p className="text-sm text-gray-500">{ecg.patientName} • {ecg.patientAge} ans</p>
+          
+          <div className="flex items-center gap-2">
+            <h1 className="font-semibold text-gray-900">{ecg.id}</h1>
+            {ecg.urgency === 'urgent' && (
+              <Badge className="bg-red-500 text-white text-[10px]">URGENT</Badge>
+            )}
           </div>
+          
+          <span className="text-sm text-gray-500">
+            {ecg.patientName} • {ecg.patientAge} ans • {ecg.patientGender === 'M' ? 'Homme' : 'Femme'}
+          </span>
         </div>
+
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Sauvegarder
+          {/* Navigation ECG */}
+          <div className="flex items-center gap-1 border rounded-lg px-2 py-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={() => handleNavigate('prev')}
+              disabled={currentIndex <= 0}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm text-gray-600 min-w-[40px] text-center">
+              {currentIndex + 1} / {totalECGs || 1}
+            </span>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={() => handleNavigate('next')}
+              disabled={currentIndex >= totalECGs - 1}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <Button variant="outline" size="sm">
+            <Eye className="h-4 w-4 mr-1" />
+            Aperçu
           </Button>
-          <Button onClick={handleComplete} className="bg-green-600 hover:bg-green-700">
-            <Send className="h-4 w-4 mr-2" />
-            Finaliser
+          <Button variant="outline" size="sm">
+            <Users className="h-4 w-4 mr-1" />
+            Second avis
           </Button>
+          <Button variant="outline" size="sm">
+            <Printer className="h-4 w-4 mr-1" />
+            Imprimer
+          </Button>
+          <Button 
+            size="sm" 
+            className="bg-indigo-600 hover:bg-indigo-700"
+            onClick={handleComplete}
+          >
+            <Send className="h-4 w-4 mr-1" />
+            Valider & Envoyer
+          </Button>
+        </div>
+      </header>
+
+      {/* Zone principale - Layout vertical avec ECG en grand */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Zone ECG (70% de hauteur) */}
+        <div className="flex-[0.7] flex flex-col min-h-0">
+          {/* Barre d'outils ECG */}
+          <div className="bg-white border-b border-border/40 px-4 py-2 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-4">
+              {/* Zoom */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Zoom:</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-xs w-10 text-center">{zoomLevel}%</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="h-6 w-px bg-gray-200" />
+
+              {/* Outils */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500 mr-1">Outils:</span>
+                <Button 
+                  variant={activeTool === 'move' ? 'default' : 'outline'} 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => setActiveTool('move')}
+                >
+                  <Move className="h-3 w-3 mr-1" />
+                  Déplacer
+                </Button>
+                <Button 
+                  variant={activeTool === 'caliper' ? 'default' : 'outline'} 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => setActiveTool('caliper')}
+                >
+                  <Ruler className="h-3 w-3 mr-1" />
+                  Calipers
+                </Button>
+              </div>
+
+              <Button 
+                variant={showGrid ? 'default' : 'outline'} 
+                size="sm" 
+                className="h-7 text-xs"
+                onClick={() => setShowGrid(!showGrid)}
+              >
+                <Grid3X3 className="h-3 w-3 mr-1" />
+                Grille
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Vitesse */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Vitesse:</span>
+                <div className="flex rounded-lg border overflow-hidden">
+                  <button 
+                    className={cn(
+                      "px-2 py-1 text-xs",
+                      speed === 25 ? "bg-indigo-600 text-white" : "bg-white text-gray-600"
+                    )}
+                    onClick={() => setSpeed(25)}
+                  >
+                    25 mm/s
+                  </button>
+                  <button 
+                    className={cn(
+                      "px-2 py-1 text-xs",
+                      speed === 50 ? "bg-indigo-600 text-white" : "bg-white text-gray-600"
+                    )}
+                    onClick={() => setSpeed(50)}
+                  >
+                    50 mm/s
+                  </button>
+                </div>
+              </div>
+
+              {/* Amplitude */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Amplitude:</span>
+                <div className="flex rounded-lg border overflow-hidden">
+                  {[5, 10, 20].map(val => (
+                    <button 
+                      key={val}
+                      className={cn(
+                        "px-2 py-1 text-xs",
+                        amplitude === val ? "bg-indigo-600 text-white" : "bg-white text-gray-600"
+                      )}
+                      onClick={() => setAmplitude(val as 5 | 10 | 20)}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs text-gray-400">mm/mV</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Visualisation ECG - Grand affichage */}
+          <div className="flex-1 p-4 overflow-auto bg-gray-100">
+            <div 
+              className={cn(
+                "bg-white rounded-lg border h-full w-full relative overflow-hidden shadow-sm",
+                showGrid && "bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M%200%200%20L%2020%200%20L%2020%2020%20L%200%2020%20Z%22%20fill%3D%22none%22%20stroke%3D%22%23fecaca%22%20stroke-width%3D%220.5%22%2F%3E%3C%2Fsvg%3E')] bg-repeat"
+              )}
+              style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minHeight: '500px' }}
+            >
+              {/* Indicateurs */}
+              <div className="absolute top-2 left-2 flex items-center gap-2 text-[10px] text-gray-500 bg-white/80 px-2 py-1 rounded">
+                <span>{speed} mm/s</span>
+                <span>{amplitude} mm/mV</span>
+                <span>Zoom: {zoomLevel}%</span>
+              </div>
+
+              {/* Boutons de contrôle */}
+              <div className="absolute top-2 right-2 flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/80">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 bg-white/80">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Dérivation II (Rhythm) */}
+              <div className="absolute top-8 left-4 text-xs text-gray-600">II (Rhythm)</div>
+              
+              {/* Calibration */}
+              <div className="absolute bottom-4 left-4 flex flex-col items-start">
+                <div className="w-px h-8 bg-gray-800"></div>
+                <div className="w-6 h-px bg-gray-800"></div>
+                <span className="text-[9px] text-gray-500 mt-1">1mV</span>
+              </div>
+
+              {/* Tracé ECG simulé - Plus visible */}
+              <svg className="w-full h-full" viewBox="0 0 1200 400" preserveAspectRatio="none">
+                <path
+                  d="M 0 200 L 50 200 L 60 200 L 70 190 L 80 200 L 90 200 L 100 200 L 110 130 L 120 230 L 130 200 L 140 200 L 150 195 L 160 200 L 200 200 L 210 200 L 220 190 L 230 200 L 240 200 L 250 200 L 260 130 L 270 230 L 280 200 L 290 200 L 300 195 L 310 200 L 350 200 L 360 200 L 370 190 L 380 200 L 390 200 L 400 200 L 410 130 L 420 230 L 430 200 L 440 200 L 450 195 L 460 200 L 500 200 L 510 200 L 520 190 L 530 200 L 540 200 L 550 200 L 560 130 L 570 230 L 580 200 L 590 200 L 600 195 L 610 200 L 650 200 L 660 200 L 670 190 L 680 200 L 690 200 L 700 200 L 710 130 L 720 230 L 730 200 L 740 200 L 750 195 L 760 200 L 800 200 L 810 200 L 820 190 L 830 200 L 840 200 L 850 200 L 860 130 L 870 230 L 880 200 L 890 200 L 900 195 L 910 200 L 950 200 L 960 200 L 970 190 L 980 200 L 990 200 L 1000 200 L 1010 130 L 1020 230 L 1030 200 L 1040 200 L 1050 195 L 1060 200 L 1100 200 L 1110 200 L 1120 190 L 1130 200 L 1140 200 L 1150 200 L 1160 130 L 1170 230 L 1180 200 L 1190 200 L 1200 195"
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="2.5"
+                />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Colonne gauche: ECG + Informations */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Informations patient et contexte */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "h-12 w-12 rounded-full flex items-center justify-center",
-                    ecg.urgency === 'urgent' ? "bg-red-100" : "bg-indigo-100"
-                  )}>
-                    <User className={cn(
-                      "h-6 w-6",
-                      ecg.urgency === 'urgent' ? "text-red-600" : "text-indigo-600"
-                    )} />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{ecg.patientName}</p>
-                    <p className="text-sm text-gray-500">
-                      {ecg.patientGender === 'M' ? 'Homme' : 'Femme'}, {ecg.patientAge} ans
-                    </p>
-                    <p className="text-xs text-gray-400">ID: {ecg.patientId}</p>
-                  </div>
+      {/* Panneaux du bas - 3 cartes compactes (30% de hauteur) */}
+      <div className="flex-[0.3] bg-white border-t border-border/60 flex-shrink-0 overflow-y-auto">
+        <div className="grid grid-cols-3 divide-x divide-border/40 h-full">
+          {/* Informations Patient - Carte compacte */}
+          <div className="p-3 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <User className="h-3.5 w-3.5 text-gray-500" />
+              <h3 className="font-medium text-xs">Informations Patient</h3>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium",
+                  ecg.patientGender === 'M' ? "bg-blue-100 text-blue-700" : "bg-pink-100 text-pink-700"
+                )}>
+                  {ecg.patientName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-full flex items-center justify-center bg-gray-100">
-                    <Building2 className="h-6 w-6 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{ecg.referringDoctor}</p>
-                    <p className="text-sm text-gray-500">{ecg.hospital}</p>
-                    <p className="text-xs text-gray-400">{ecg.referringDoctorEmail}</p>
-                  </div>
+                <div>
+                  <p className="font-medium text-xs">{ecg.patientName}</p>
+                  <p className="text-[10px] text-gray-500">{ecg.patientAge} ans • {ecg.patientGender === 'M' ? 'Homme' : 'Femme'}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="border-t border-border/40 pt-2 mt-2"></div>
+              <div className="text-[10px] text-gray-600 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-2.5 w-2.5 text-gray-400" />
+                  <span>Date: {format(parseISO(ecg.ecgDate), 'dd MMMM yyyy à HH:mm', { locale: fr })}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="h-2.5 w-2.5 text-gray-400" />
+                  <span>Centre: {ecg.hospital}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <User className="h-2.5 w-2.5 text-gray-400" />
+                  <span>Prescripteur: {ecg.referringDoctor}</span>
+                </div>
+              </div>
+              {ecg.clinicalContext && (
+                <div className="mt-2 p-1.5 bg-amber-50 rounded border border-amber-200">
+                  <div className="flex items-center gap-1 text-amber-700 text-[10px] font-medium mb-0.5">
+                    <span className="text-amber-600">▲</span>
+                    Symptômes
+                  </div>
+                  <p className="text-[10px] text-amber-800">{ecg.clinicalContext}</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Contexte clinique */}
-          <Card className={cn(
-            ecg.urgency === 'urgent' && "border-red-200 bg-red-50/50"
-          )}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Contexte clinique
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className={cn(
-                "text-sm",
-                ecg.urgency === 'urgent' && "text-red-800 font-medium"
-              )}>
-                {ecg.clinicalContext}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Visualisation ECG */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Tracé ECG
-                </CardTitle>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.1))}>
-                    <ZoomOut className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.1))}>
-                    <ZoomIn className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <RotateCw className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Ruler className="h-4 w-4" />
-                  </Button>
+          {/* Mesures ECG - Carte compacte */}
+          <div className="p-3 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <Ruler className="h-3.5 w-3.5 text-gray-500" />
+              <h3 className="font-medium text-xs">Mesures ECG</h3>
+            </div>
+            <div className="space-y-2">
+              {/* Fréquence cardiaque */}
+              <div className="p-2 bg-gray-50 rounded">
+                <Label className="text-[10px] text-gray-500">Fréquence Cardiaque</Label>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <Input
+                    type="number"
+                    className="h-7 w-16 text-base font-semibold text-xs"
+                    value={measurements.heartRate || ''}
+                    onChange={(e) => setMeasurements({...measurements, heartRate: parseInt(e.target.value) || undefined})}
+                    placeholder="—"
+                  />
+                  <span className="text-xs text-gray-600">bpm</span>
                 </div>
+                <p className="text-[9px] text-gray-400 mt-0.5">Normal: 60-100 bpm</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div 
-                className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 min-h-[400px] flex items-center justify-center overflow-auto"
-                style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }}
-              >
-                {/* Placeholder pour le tracé ECG */}
-                <div className="text-center text-gray-400">
-                  <Activity className="h-16 w-16 mx-auto mb-4" />
-                  <p className="font-medium">Tracé ECG 12 dérivations</p>
-                  <p className="text-sm">Date: {format(parseISO(ecg.ecgDate), 'dd/MM/yyyy')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Colonne droite: Analyse */}
-        <div className="space-y-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="measurements">
-                <Ruler className="h-4 w-4 mr-2" />
-                Mesures
-              </TabsTrigger>
-              <TabsTrigger value="interpretation">
-                <FileText className="h-4 w-4 mr-2" />
-                Interprétation
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Onglet Mesures */}
-            <TabsContent value="measurements" className="space-y-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-red-500" />
-                    Mesures ECG
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Rythme */}
-                  <div className="space-y-2">
-                    <Label>Rythme</Label>
-                    <Select 
-                      value={measurements.rhythm} 
-                      onValueChange={(value) => setMeasurements({...measurements, rhythm: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sinusal">Sinusal</SelectItem>
-                        <SelectItem value="FA">Fibrillation auriculaire</SelectItem>
-                        <SelectItem value="Flutter">Flutter auriculaire</SelectItem>
-                        <SelectItem value="Jonctionnel">Jonctionnel</SelectItem>
-                        <SelectItem value="Ventriculaire">Ventriculaire</SelectItem>
-                        <SelectItem value="Pacemaker">Rythme électro-entraîné</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Fréquence cardiaque */}
-                  <div className="space-y-2">
-                    <Label>Fréquence cardiaque (bpm)</Label>
-                    <Input
-                      type="number"
-                      value={measurements.heartRate || ''}
-                      onChange={(e) => setMeasurements({...measurements, heartRate: parseInt(e.target.value) || undefined})}
-                      placeholder="60-100"
-                    />
-                  </div>
-
-                  {/* Axe */}
-                  <div className="space-y-2">
-                    <Label>Axe électrique</Label>
-                    <Select 
-                      value={measurements.axis || ''} 
-                      onValueChange={(value) => setMeasurements({...measurements, axis: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Normal (0° à +90°)">Normal (0° à +90°)</SelectItem>
-                        <SelectItem value="Déviation gauche">Déviation gauche (&lt; 0°)</SelectItem>
-                        <SelectItem value="Déviation droite">Déviation droite (&gt; +90°)</SelectItem>
-                        <SelectItem value="Indéterminé">Indéterminé</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Intervalles */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>PR (ms)</Label>
+              {/* Intervalles */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-500 mb-1.5">INTERVALLES</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <Label className="text-[9px] text-gray-500">PR</Label>
+                    <div className="flex items-center gap-1">
                       <Input
                         type="number"
+                        className="h-6 text-xs"
                         value={measurements.prInterval || ''}
                         onChange={(e) => setMeasurements({...measurements, prInterval: parseInt(e.target.value) || undefined})}
-                        placeholder="120-200"
+                        placeholder="—"
                       />
+                      <span className="text-[10px] text-gray-400">ms</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>QRS (ms)</Label>
+                  </div>
+                  <div>
+                    <Label className="text-[9px] text-gray-500">QRS</Label>
+                    <div className="flex items-center gap-1">
                       <Input
                         type="number"
+                        className="h-6 text-xs"
                         value={measurements.qrsDuration || ''}
                         onChange={(e) => setMeasurements({...measurements, qrsDuration: parseInt(e.target.value) || undefined})}
-                        placeholder="80-120"
+                        placeholder="—"
                       />
+                      <span className="text-[10px] text-gray-400">ms</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>QT (ms)</Label>
+                  </div>
+                  <div>
+                    <Label className="text-[9px] text-gray-500">QT</Label>
+                    <div className="flex items-center gap-1">
                       <Input
                         type="number"
+                        className="h-6 text-xs"
                         value={measurements.qtInterval || ''}
                         onChange={(e) => setMeasurements({...measurements, qtInterval: parseInt(e.target.value) || undefined})}
-                        placeholder="350-440"
+                        placeholder="—"
                       />
+                      <span className="text-[10px] text-gray-400">ms</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>QTc (ms)</Label>
+                  </div>
+                  <div>
+                    <Label className="text-[9px] text-gray-500">QTc</Label>
+                    <div className="flex items-center gap-1">
                       <Input
                         type="number"
+                        className="h-6 text-xs bg-gray-100"
                         value={measurements.qtcInterval || ''}
                         readOnly
-                        className="bg-gray-50"
                         placeholder="Auto"
                       />
+                      <span className="text-[10px] text-gray-400">ms</span>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                  {/* Indicateurs de normalité */}
-                  <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-1">
-                    <p className="font-medium mb-2">Valeurs normales :</p>
-                    <p>• FC: 60-100 bpm</p>
-                    <p>• PR: 120-200 ms</p>
-                    <p>• QRS: 80-120 ms</p>
-                    <p>• QTc: &lt; 450 ms (H) / &lt; 460 ms (F)</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Onglet Interprétation */}
-            <TabsContent value="interpretation" className="space-y-4">
-              {/* Constatations */}
-              <Card>
-                <Collapsible open={findingsOpen} onOpenChange={setFindingsOpen}>
-                  <CardHeader className="pb-2">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        Constatations ({selectedFindings.length})
-                      </CardTitle>
-                      {findingsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </CollapsibleTrigger>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent className="space-y-3">
-                      {/* Findings sélectionnés */}
-                      {selectedFindings.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedFindings.map(finding => (
-                            <Badge 
-                              key={finding} 
-                              variant="secondary"
-                              className="pl-2 pr-1 py-1 flex items-center gap-1"
-                            >
-                              {finding}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-4 w-4 hover:bg-red-100"
-                                onClick={() => handleRemoveFinding(finding)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Ajouter finding */}
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Ajouter une constatation..."
-                          value={customFinding}
-                          onChange={(e) => setCustomFinding(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddCustomFinding()}
-                        />
-                        <Button size="icon" onClick={handleAddCustomFinding}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {/* Templates rapides */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-gray-500">Suggestions :</p>
-                        <div className="flex flex-wrap gap-1">
-                          {findingsTemplates.slice(0, 10).map(finding => (
-                            <Button
-                              key={finding}
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => handleAddFinding(finding)}
-                              disabled={selectedFindings.includes(finding)}
-                            >
-                              {finding}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-
-              {/* Conclusion */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Conclusion
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Templates de conclusion */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                      <Lightbulb className="h-3 w-3" />
-                      Modèles rapides :
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {conclusionTemplates.map(template => (
-                        <Button
-                          key={template.id}
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "h-7 text-xs",
-                            template.isNormal ? "border-green-200 hover:bg-green-50" : "border-amber-200 hover:bg-amber-50"
-                          )}
-                          onClick={() => handleApplyTemplate(template.id)}
-                        >
-                          {template.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Textarea
-                    placeholder="Rédigez votre conclusion..."
-                    value={conclusion}
-                    onChange={(e) => setConclusion(e.target.value)}
-                    className="min-h-[120px]"
-                  />
-
-                  {/* Normal / Anormal */}
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="normal"
-                        checked={isNormal}
-                        onCheckedChange={(checked) => setIsNormal(checked as boolean)}
-                      />
-                      <label
-                        htmlFor="normal"
-                        className={cn(
-                          "text-sm font-medium",
-                          isNormal ? "text-green-600" : "text-gray-500"
-                        )}
-                      >
-                        ECG Normal
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="abnormal"
-                        checked={!isNormal}
-                        onCheckedChange={(checked) => setIsNormal(!(checked as boolean))}
-                      />
-                      <label
-                        htmlFor="abnormal"
-                        className={cn(
-                          "text-sm font-medium",
-                          !isNormal ? "text-amber-600" : "text-gray-500"
-                        )}
-                      >
-                        ECG Anormal
-                      </label>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Recommandations */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Lightbulb className="h-4 w-4 text-amber-500" />
-                    Recommandations (optionnel)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    placeholder="Examens complémentaires, surveillance, etc."
-                    value={recommendations}
-                    onChange={(e) => setRecommendations(e.target.value)}
-                    className="min-h-[80px]"
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
-              Sauvegarder
-            </Button>
-            <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleComplete}>
-              <Send className="h-4 w-4 mr-2" />
-              Finaliser
-            </Button>
+          {/* Interprétation - Carte compacte */}
+          <div className="p-3 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-gray-500" />
+                <h3 className="font-medium text-xs">Interprétation</h3>
+              </div>
+              <Select onValueChange={handleApplyTemplate}>
+                <SelectTrigger className="w-[110px] h-6 text-[10px]">
+                  <SelectValue placeholder="Phrases rapides" />
+                </SelectTrigger>
+                <SelectContent>
+                  {conclusionTemplates.map(t => (
+                    <SelectItem key={t.id} value={t.id} className="text-xs">
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Textarea
+                placeholder="Saisissez votre interprétation ici..."
+                className="min-h-[80px] text-xs resize-none"
+                value={interpretation}
+                onChange={(e) => setInterpretation(e.target.value)}
+                onKeyDown={handleInterpretationKeyDown}
+              />
+              <div className="text-[9px] text-gray-400 space-y-0.5">
+                <p className="font-medium">Utilisez les raccourcis:</p>
+                <p>• /rs → Rythme sinusal régulier</p>
+                <p>• /fa → Fibrillation auriculaire</p>
+                <p>• /ecgn → ECG normal</p>
+                <p>• ...</p>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-[9px] text-gray-400">{interpretation.length} caractères</span>
+                <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={handleSave}>
+                  <Save className="h-2.5 w-2.5 mr-1" />
+                  Sauvegarder
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -670,43 +603,28 @@ export function AnalyzeECG() {
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Confirmer la finalisation
-            </DialogTitle>
+            <DialogTitle>Confirmer la validation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Vous êtes sur le point de finaliser l'interprétation de cet ECG. 
-              Le rapport sera envoyé au médecin référent.
+              Vous êtes sur le point de valider et envoyer ce rapport ECG.
             </p>
-
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+            <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-1">
               <p><strong>Patient:</strong> {ecg.patientName}</p>
               <p><strong>ECG:</strong> {ecg.id}</p>
-              <p><strong>Résultat:</strong> 
-                <Badge className={cn(
-                  "ml-2",
-                  isNormal ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                )}>
-                  {isNormal ? 'Normal' : 'Anormal'}
-                </Badge>
-              </p>
-              <p><strong>Constatations:</strong> {selectedFindings.length}</p>
             </div>
-
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-800">
-              <p className="font-medium">Conclusion :</p>
-              <p className="mt-1">{conclusion}</p>
+            <div className="bg-indigo-50 p-3 rounded-lg text-sm">
+              <p className="font-medium text-indigo-800">Interprétation :</p>
+              <p className="text-indigo-700 mt-1">{interpretation}</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={confirmComplete} className="bg-green-600 hover:bg-green-700">
-              <Send className="h-4 w-4 mr-2" />
-              Confirmer et envoyer
+            <Button onClick={confirmComplete} className="bg-indigo-600 hover:bg-indigo-700">
+              <Send className="h-4 w-4 mr-1" />
+              Confirmer
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard,
@@ -12,12 +13,18 @@ import {
   UserPlus,
   FileText,
   BarChart3,
-  Settings
+  Settings,
+  ChevronDown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useAdminStore, roleLabels, roleColors, statusColors } from '@/stores/useAdminStore';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -28,6 +35,7 @@ export function AdminDashboard() {
   const { getStats, users, hospitals, getLogs } = useAdminStore();
   const stats = getStats();
   const logs = getLogs();
+  const [statsOpen, setStatsOpen] = useState(true);
 
   // Utilisateurs en attente de validation
   const pendingUsers = users.filter(u => u.status === 'pending');
@@ -35,147 +43,155 @@ export function AdminDashboard() {
   const recentLogs = logs.slice(0, 5);
 
   return (
-    <div className="space-y-5">
+    <div className="p-4 space-y-3">
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5 text-indigo-600" />
+          <h1 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4 text-indigo-600" />
             Administration
           </h1>
-          <p className="text-sm text-slate-500">
-            Vue d'ensemble du système Xpress-ECG
-          </p>
         </div>
         <div className="text-xs text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded">
           {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
         </div>
       </div>
 
-      {/* Alertes */}
-      {pendingUsers.length > 0 && (
-        <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-amber-50/30">
-          <CardContent className="p-3">
+      {/* Stats compactes collapsibles */}
+      <div className="flex items-center justify-between">
+        <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="p-0 h-auto hover:bg-transparent">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-bold text-indigo-600">{stats.totalUsers}</span>
+                  <span className="text-xs text-gray-500">Utilisateurs</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-bold text-emerald-600">{stats.totalHospitals}</span>
+                  <span className="text-xs text-gray-500">Établissements</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-bold text-blue-600">{stats.ecgThisMonth}</span>
+                  <span className="text-xs text-gray-500">ECG ce mois</span>
+                </div>
+                <ChevronDown className={cn(
+                  "h-3 w-3 text-gray-400 transition-transform",
+                  statsOpen && "rotate-180"
+                )} />
+              </div>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 bg-amber-100 rounded-lg flex items-center justify-center">
                   <UserPlus className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-amber-800">
+                  <h3 className="text-xs font-semibold text-amber-800">
                     {pendingUsers.length} inscription(s) en attente
                   </h3>
-                  <p className="text-xs text-amber-600">
-                    Nécessite votre validation
-                  </p>
+                  <p className="text-[10px] text-amber-600">Nécessite votre validation</p>
                 </div>
               </div>
               <Button 
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs border-amber-300/70 text-amber-700 hover:bg-amber-100"
+                className="h-7 text-xs border-amber-300/70 text-amber-700 hover:bg-amber-100"
                 onClick={() => navigate('/admin/users')}
               >
-                Voir les demandes
-                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                Voir
+                <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Statistiques principales */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-indigo-50/80 to-indigo-50/20 border-indigo-200/60"
-          onClick={() => navigate('/admin/users')}
-        >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-indigo-600 text-xs font-medium">Utilisateurs</p>
-                <p className="text-2xl font-bold text-indigo-700">{stats.totalUsers}</p>
-                <p className="text-[10px] text-indigo-500 mt-0.5">
-                  {stats.activeUsers} actifs
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-indigo-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-indigo-50/80 to-transparent border-indigo-200/60"
+                onClick={() => navigate('/admin/users')}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-indigo-600 text-xs font-medium">Utilisateurs</p>
+                      <p className="text-xl font-bold text-indigo-700">{stats.totalUsers}</p>
+                      <p className="text-[9px] text-indigo-500 mt-0.5">{stats.activeUsers} actifs</p>
+                    </div>
+                    <Users className="h-5 w-5 text-indigo-400" />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-emerald-50/80 to-emerald-50/20 border-emerald-200/60"
-          onClick={() => navigate('/admin/hospitals')}
-        >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-600 text-xs font-medium">Établissements</p>
-                <p className="text-2xl font-bold text-emerald-700">{stats.totalHospitals}</p>
-                <p className="text-[10px] text-emerald-500 mt-0.5">
-                  {stats.activeHospitals} actifs
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-emerald-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-emerald-50/80 to-transparent border-emerald-200/60"
+                onClick={() => navigate('/admin/hospitals')}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-emerald-600 text-xs font-medium">Établissements</p>
+                      <p className="text-xl font-bold text-emerald-700">{stats.totalHospitals}</p>
+                      <p className="text-[9px] text-emerald-500 mt-0.5">{stats.activeHospitals} actifs</p>
+                    </div>
+                    <Building2 className="h-5 w-5 text-emerald-400" />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-blue-50/80 to-blue-50/20 border-blue-200/60"
-          onClick={() => navigate('/admin/statistics')}
-        >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-xs font-medium">ECG ce mois</p>
-                <p className="text-2xl font-bold text-blue-700">{stats.ecgThisMonth}</p>
-                <p className="text-[10px] text-blue-500 mt-0.5">
-                  {stats.ecgToday} aujourd'hui
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Activity className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-blue-50/80 to-transparent border-blue-200/60"
+                onClick={() => navigate('/admin/statistics')}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-blue-600 text-xs font-medium">ECG ce mois</p>
+                      <p className="text-xl font-bold text-blue-700">{stats.ecgThisMonth}</p>
+                      <p className="text-[9px] text-blue-500 mt-0.5">{stats.ecgToday} aujourd'hui</p>
+                    </div>
+                    <Activity className="h-5 w-5 text-blue-400" />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card className="bg-gradient-to-br from-violet-50/80 to-violet-50/20 border-violet-200/60">
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-violet-600 text-xs font-medium">Temps moyen</p>
-                <p className="text-2xl font-bold text-violet-700">{stats.avgResponseTime}</p>
-                <p className="text-[10px] text-violet-500 mt-0.5">
-                  réponse
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-violet-100 rounded-lg flex items-center justify-center">
-                <Clock className="h-5 w-5 text-violet-700" />
-              </div>
+              <Card className="bg-gradient-to-br from-violet-50/80 to-transparent border-violet-200/60">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-violet-600 text-xs font-medium">Temps moyen</p>
+                      <p className="text-xl font-bold text-violet-700">{stats.avgResponseTime}</p>
+                      <p className="text-[9px] text-violet-500 mt-0.5">réponse</p>
+                    </div>
+                    <Clock className="h-5 w-5 text-violet-400" />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
+      {/* Alertes */}
+      {pendingUsers.length > 0 && (
+        <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-amber-50/30">
+          <CardContent className="p-2.5">
+
       {/* Contenu principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Activité récente */}
         <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-600" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="h-4 w-4 text-indigo-600" />
               Activité récente
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/admin/logs')}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/admin/logs')}>
               Voir tout
-              <ChevronRight className="h-4 w-4 ml-1" />
+              <ChevronRight className="h-3 w-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent>
@@ -221,9 +237,9 @@ export function AdminDashboard() {
 
         {/* Statistiques rapides */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-indigo-600" />
               Vue rapide
             </CardTitle>
           </CardHeader>
@@ -299,46 +315,62 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Actions rapides */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Actions rapides - Compact */}
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-indigo-50/50 hover:border-indigo-300/70 border-border/60 transition-all duration-200"
+          className="h-auto px-3 py-2 flex items-center gap-2 hover:bg-indigo-50/50 hover:border-indigo-300/70"
           onClick={() => navigate('/admin/users')}
         >
-          <Users className="h-6 w-6 text-indigo-600" />
-          <span className="text-sm font-medium">Utilisateurs</span>
-          <span className="text-[10px] text-slate-500">{stats.totalUsers} comptes</span>
+          <div className="w-6 h-6 bg-indigo-100 rounded-md flex items-center justify-center">
+            <Users className="h-4 w-4 text-indigo-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-medium text-xs text-slate-800">Utilisateurs</h3>
+            <p className="text-[10px] text-slate-500">{stats.totalUsers} comptes</p>
+          </div>
         </Button>
 
         <Button
           variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-emerald-50/50 hover:border-emerald-300/70 border-border/60 transition-all duration-200"
+          className="h-auto px-3 py-2 flex items-center gap-2 hover:bg-emerald-50/50 hover:border-emerald-300/70"
           onClick={() => navigate('/admin/hospitals')}
         >
-          <Building2 className="h-6 w-6 text-emerald-600" />
-          <span className="text-sm font-medium">Établissements</span>
-          <span className="text-[10px] text-slate-500">{stats.totalHospitals} partenaires</span>
+          <div className="w-6 h-6 bg-emerald-100 rounded-md flex items-center justify-center">
+            <Building2 className="h-4 w-4 text-emerald-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-medium text-xs text-slate-800">Établissements</h3>
+            <p className="text-[10px] text-slate-500">{stats.totalHospitals} partenaires</p>
+          </div>
         </Button>
 
         <Button
           variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-blue-50/50 hover:border-blue-300/70 border-border/60 transition-all duration-200"
+          className="h-auto px-3 py-2 flex items-center gap-2 hover:bg-blue-50/50 hover:border-blue-300/70"
           onClick={() => navigate('/admin/statistics')}
         >
-          <BarChart3 className="h-6 w-6 text-blue-600" />
-          <span className="text-sm font-medium">Statistiques</span>
-          <span className="text-[10px] text-slate-500">Rapports détaillés</span>
+          <div className="w-6 h-6 bg-blue-100 rounded-md flex items-center justify-center">
+            <BarChart3 className="h-4 w-4 text-blue-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-medium text-xs text-slate-800">Statistiques</h3>
+            <p className="text-[10px] text-slate-500">Rapports détaillés</p>
+          </div>
         </Button>
 
         <Button
           variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-slate-100/50 hover:border-slate-300/70 border-border/60 transition-all duration-200"
+          className="h-auto px-3 py-2 flex items-center gap-2 hover:bg-slate-100/50 hover:border-slate-300/70"
           onClick={() => navigate('/admin/settings')}
         >
-          <Settings className="h-6 w-6 text-slate-600" />
-          <span className="text-sm font-medium">Paramètres</span>
-          <span className="text-[10px] text-slate-500">Configuration</span>
+          <div className="w-6 h-6 bg-slate-100 rounded-md flex items-center justify-center">
+            <Settings className="h-4 w-4 text-slate-600" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-medium text-xs text-slate-800">Paramètres</h3>
+            <p className="text-[10px] text-slate-500">Configuration</p>
+          </div>
         </Button>
       </div>
     </div>
