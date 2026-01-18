@@ -94,32 +94,6 @@ export function SecretaireDashboard() {
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-2">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-red-800">
-                    {urgentPending.length} ECG urgent(s) en attente
-                  </h3>
-                  <p className="text-[10px] text-red-600">À traiter en priorité</p>
-                </div>
-              </div>
-              <Button 
-                variant="destructive"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => navigate('/secretaire/inbox')}
-              >
-                Traiter
-                <ChevronRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
               <Card 
                 className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-amber-50/80 to-transparent border-amber-200/60"
                 onClick={() => navigate('/secretaire/inbox')}
@@ -199,6 +173,31 @@ export function SecretaireDashboard() {
       {urgentPending.length > 0 && (
         <Card className="border-red-200/60 bg-gradient-to-r from-red-50/80 to-red-50/30">
           <CardContent className="p-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-red-800">
+                    {urgentPending.length} ECG urgent(s) en attente
+                  </h3>
+                  <p className="text-[10px] text-red-600">À traiter en priorité</p>
+                </div>
+              </div>
+              <Button 
+                variant="destructive"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => navigate('/secretaire/inbox')}
+              >
+                Traiter
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contenu principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
