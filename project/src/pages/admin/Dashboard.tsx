@@ -84,32 +84,6 @@ export function AdminDashboard() {
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-2">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <UserPlus className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-amber-800">
-                    {pendingUsers.length} inscription(s) en attente
-                  </h3>
-                  <p className="text-[10px] text-amber-600">Nécessite votre validation</p>
-                </div>
-              </div>
-              <Button 
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs border-amber-300/70 text-amber-700 hover:bg-amber-100"
-                onClick={() => navigate('/admin/users')}
-              >
-                Voir
-                <ChevronRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
               <Card 
                 className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-indigo-50/80 to-transparent border-indigo-200/60"
                 onClick={() => navigate('/admin/users')}
@@ -179,6 +153,31 @@ export function AdminDashboard() {
       {pendingUsers.length > 0 && (
         <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-amber-50/30">
           <CardContent className="p-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <UserPlus className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-amber-800">
+                    {pendingUsers.length} inscription(s) en attente
+                  </h3>
+                  <p className="text-[10px] text-amber-600">Nécessite votre validation</p>
+                </div>
+              </div>
+              <Button 
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs border-amber-300/70 text-amber-700 hover:bg-amber-100"
+                onClick={() => navigate('/admin/users')}
+              >
+                Voir
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contenu principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
