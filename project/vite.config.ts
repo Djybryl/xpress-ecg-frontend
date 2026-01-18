@@ -7,7 +7,6 @@ export default defineConfig({
   plugins: [
     react({
       jsxRuntime: 'automatic',
-      fastRefresh: true,
       babel: {
         babelrc: false,
         configFile: false

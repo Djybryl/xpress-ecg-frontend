@@ -100,7 +100,7 @@ export class ECGAnalysisService {
 
       return { ecgRecord, analysis, error: null };
     } catch (error) {
-      console.error('Erreur lors de l'importation de l'ECG:', error);
+      console.error('Erreur lors de l\'importation de l\'ECG:', error);
       return { 
         ecgRecord: null, 
         analysis: null, 
@@ -135,8 +135,8 @@ export class ECGAnalysisService {
         ]
       };
     } catch (error) {
-      console.error('Erreur lors de l'analyse de l'ECG:', error);
-      throw new Error('Échec de l'analyse de l'ECG');
+      console.error('Erreur lors de l\'analyse de l\'ECG:', error);
+      throw new Error('Échec de l\'analyse de l\'ECG');
     }
   }
 
