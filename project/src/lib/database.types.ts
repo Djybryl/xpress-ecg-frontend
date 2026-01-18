@@ -263,6 +263,188 @@ export interface Database {
           }
         ]
       }
+      messages: {
+        Row: {
+          id: string
+          sender_id: string
+          recipient_id: string
+          content: string
+          ecg_record_id: string | null
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          recipient_id: string
+          content: string
+          ecg_record_id?: string | null
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sender_id?: string
+          recipient_id?: string
+          content?: string
+          ecg_record_id?: string | null
+          read?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          read: boolean
+          reference_id: string | null
+          reference_type: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          read?: boolean
+          reference_id?: string | null
+          reference_type?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string
+          type?: string
+          read?: boolean
+          reference_id?: string | null
+          reference_type?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ecg_favorites: {
+        Row: {
+          id: string
+          user_id: string
+          ecg_record_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          ecg_record_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          ecg_record_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecg_favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecg_favorites_ecg_record_id_fkey"
+            columns: ["ecg_record_id"]
+            isOneToOne: false
+            referencedRelation: "ecg_records"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ecg_tags: {
+        Row: {
+          id: string
+          name: string
+          color: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          color: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          color?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      ecg_tag_relations: {
+        Row: {
+          id: string
+          ecg_record_id: string
+          tag_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ecg_record_id: string
+          tag_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ecg_record_id?: string
+          tag_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecg_tag_relations_ecg_record_id_fkey"
+            columns: ["ecg_record_id"]
+            isOneToOne: false
+            referencedRelation: "ecg_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecg_tag_relations_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "ecg_tags"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
