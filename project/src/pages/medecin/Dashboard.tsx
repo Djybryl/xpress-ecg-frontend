@@ -333,17 +333,17 @@ export function MedecinDashboard() {
               {requests.map((request) => (
                 <div
                   key={request.id}
-                  className="flex items-center justify-between p-3 hover:bg-slate-50/80 cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-2 hover:bg-slate-50/80 cursor-pointer transition-colors"
                   onClick={() => navigate('/medecin/requests')}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {getStatusIcon(request.status)}
                     <div>
-                      <p className="text-sm font-medium text-slate-800">{request.patient_name}</p>
-                      <p className="text-xs text-slate-500">{request.id} • {formatDate(request.date)}</p>
+                      <p className="text-xs font-medium text-slate-800">{request.patient_name}</p>
+                      <p className="text-[10px] text-slate-500">{request.id} • {formatDate(request.date)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {request.urgency === 'urgent' && (
                       <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                         Urgent
@@ -352,7 +352,7 @@ export function MedecinDashboard() {
                     <Badge className={cn("text-[10px] px-1.5 py-0.5", getStatusColor(request.status))}>
                       {getStatusLabel(request.status)}
                     </Badge>
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
                   </div>
                 </div>
               ))}

@@ -10,7 +10,11 @@ export interface ECGMeasurements {
   qtInterval?: number;
   qtcInterval?: number;
   axis?: string;
+  pAxis?: string;
+  qrsAxis?: string;
+  tAxis?: string;
   rhythm?: string;
+  sokolow?: number;
 }
 
 export interface ECGInterpretation {

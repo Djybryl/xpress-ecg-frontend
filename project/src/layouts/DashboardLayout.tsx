@@ -45,7 +45,9 @@ export function DashboardLayout({ user, onLogout }: DashboardLayoutProps) {
         />
 
         <main className="flex-1 overflow-auto bg-slate-50/50">
-          <Outlet />
+          <div className="p-5">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

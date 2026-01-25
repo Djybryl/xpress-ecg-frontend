@@ -1,26 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Inbox, 
   Clock,
   AlertTriangle,
   CheckCircle2,
-  Eye,
-  FileText,
+  Activity,
   Play,
-  Calendar,
-  ChevronRight,
-  ChevronDown,
-  Search,
-  Filter,
+  MessageSquare,
+  Copy,
+  Eye,
+  Star,
+  BarChart3,
   RefreshCw,
-  Building2,
-  Users
+  Filter,
+  Calendar,
+  Search,
+  Zap,
+  TrendingUp,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown
 } from 'lucide-react';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -29,543 +37,739 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useCardiologueStore } from '@/stores/useCardiologueStore';
-import { format, parseISO } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
+import { format, parseISO, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, differenceInMinutes } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-// Données mock des établissements
-const establishments = [
-  { id: 'all', name: 'Tous les établissements', count: 34 },
-  { id: 'hsl', name: 'Hôpital Saint-Louis', count: 12 },
-  { id: 'cds', name: 'Clinique du Sport', count: 5 },
-  { id: 'ccp', name: 'Centre Cardio Paris', count: 8 },
-  { id: 'ha', name: 'Hôpital Américain', count: 3 },
-  { id: 'icp', name: 'Institut Cœur Paris', count: 6 },
-];
+type FilterType = 'all' | 'urgent' | 'today' | 'favorites';
+type SortType = 'recent' | 'urgent-first' | 'oldest' | 'hospital' | 'doctor' | 'patient-name';
 
 export function CardiologueDashboard() {
   const navigate = useNavigate();
-  const { getPending, getUrgent, getInProgress, getCompleted, getCounts, startAnalysis } = useCardiologueStore();
-
-  const [selectedEstablishment, setSelectedEstablishment] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('today');
-  const [statsOpen, setStatsOpen] = useState(true);
+  const { toast } = useToast();
+  const { getPending, getUrgent, getCompleted, getCounts, startAnalysis } = useCardiologueStore();
 
   const pendingECGs = getPending();
   const urgentECGs = getUrgent();
-  const inProgressECGs = getInProgress();
   const completedECGs = getCompleted();
   const counts = getCounts();
 
-  // Calcul des ECG non interprétés (pending + in progress)
-  const notInterpreted = counts.pending + counts.inProgress;
+  const [selectedECGs, setSelectedECGs] = useState<string[]>([]);
+  const [favoriteECGs, setFavoriteECGs] = useState<string[]>([]);
+  const [hoveredECG, setHoveredECG] = useState<string | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortType>('recent');
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [selectedECGForAction, setSelectedECGForAction] = useState<any>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [sessionTimer, setSessionTimer] = useState('00:00');
+  const [showStats, setShowStats] = useState(true);
+  const [showFocusMode, setShowFocusMode] = useState(true);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Timer session
+  useEffect(() => {
+    if (!sessionStartTime) {
+      setSessionStartTime(new Date());
+    }
+
+    const interval = setInterval(() => {
+      if (sessionStartTime) {
+        const elapsed = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        setSessionTimer(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionStartTime]);
+
+  // Stats
+  const avgAnalysisTime = completedECGs.length > 0 
+    ? Math.round(completedECGs.reduce((acc, ecg) => {
+        if (ecg.dateStarted && ecg.dateCompleted) {
+          return acc + differenceInMinutes(parseISO(ecg.dateCompleted), parseISO(ecg.dateStarted));
+        }
+        return acc;
+      }, 0) / completedECGs.length)
+    : 0;
+
+  const today = new Date();
+  const todayCompleted = completedECGs.filter(e => 
+    e.dateCompleted && format(parseISO(e.dateCompleted), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
+  ).length;
+
+  // Filtrage
+  let filteredECGs = pendingECGs.filter(ecg => {
+    if (activeFilter === 'urgent' && ecg.urgency !== 'urgent' && ecg.urgency !== 'critical') return false;
+    if (activeFilter === 'today' && format(parseISO(ecg.ecgDate), 'yyyy-MM-dd') !== format(today, 'yyyy-MM-dd')) return false;
+    if (activeFilter === 'favorites' && !favoriteECGs.includes(ecg.id)) return false;
+    if (searchQuery && !ecg.patientName.toLowerCase().includes(searchQuery.toLowerCase()) && !ecg.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
+  // Tri
+  filteredECGs = [...filteredECGs].sort((a, b) => {
+    switch(sortBy) {
+      case 'recent':
+        return new Date(b.ecgDate).getTime() - new Date(a.ecgDate).getTime();
+      case 'oldest':
+        return new Date(a.ecgDate).getTime() - new Date(b.ecgDate).getTime();
+      case 'urgent-first':
+        const urgencyOrder = { critical: 0, urgent: 1, normal: 2 };
+        return urgencyOrder[a.urgency as keyof typeof urgencyOrder] - urgencyOrder[b.urgency as keyof typeof urgencyOrder];
+      case 'hospital':
+        return a.hospital.localeCompare(b.hospital);
+      case 'doctor':
+        return a.referringDoctor.localeCompare(b.referringDoctor);
+      case 'patient-name':
+        return a.patientName.localeCompare(b.patientName);
+      default:
+        return 0;
+    }
+  });
+
+  const nextECG = urgentECGs[0] || pendingECGs[0];
+
+  // Navigation clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      switch(e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedIndex(prev => Math.min(prev + 1, filteredECGs.length - 1));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedIndex(prev => Math.max(prev - 1, 0));
+          break;
+        case ' ':
+          e.preventDefault();
+          if (filteredECGs[focusedIndex]) {
+            handleSelectECG(filteredECGs[focusedIndex].id);
+          }
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (filteredECGs[focusedIndex]) {
+            handleStartAnalysis(filteredECGs[focusedIndex].id);
+          }
+          break;
+        case '1':
+          if (filteredECGs[focusedIndex]) {
+            handleOpenChat(filteredECGs[focusedIndex]);
+          }
+          break;
+        case '2':
+          if (filteredECGs[focusedIndex]) {
+            handleCopyInfo(filteredECGs[focusedIndex]);
+          }
+          break;
+        case '3':
+          if (filteredECGs[focusedIndex]) {
+            handleOpenPreview(filteredECGs[focusedIndex]);
+          }
+          break;
+        case '4':
+          if (filteredECGs[focusedIndex]) {
+            handleStartAnalysis(filteredECGs[focusedIndex].id);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focusedIndex, filteredECGs]);
+
+  // Scroll to focused
+  useEffect(() => {
+    if (listRef.current) {
+      const focusedElement = listRef.current.children[focusedIndex] as HTMLElement;
+      if (focusedElement) {
+        focusedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [focusedIndex]);
 
   const handleStartAnalysis = (ecgId: string) => {
     startAnalysis(ecgId);
     navigate(`/cardiologue/analyze/${ecgId}`);
   };
 
-  // Filtrer les ECG par recherche
-  const filteredECGs = pendingECGs.filter(ecg => {
-    const matchSearch = searchTerm === '' || 
-      ecg.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ecg.id.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSearch;
-  });
+  const handleSelectECG = (ecgId: string) => {
+    setSelectedECGs(prev => 
+      prev.includes(ecgId) 
+        ? prev.filter(id => id !== ecgId)
+        : [...prev, ecgId]
+    );
+  };
 
-  const getStatusBadge = (status: string, urgency?: string) => {
-    if (urgency === 'urgent') {
-      return <Badge className="bg-red-500 text-white text-[10px] px-2">URGENT</Badge>;
-    }
-    if (urgency === 'critical') {
-      return <Badge className="bg-red-700 text-white text-[10px] px-2">CRITICAL</Badge>;
-    }
-    switch (status) {
-      case 'pending':
-        return <Badge className="bg-amber-100 text-amber-700 text-[10px] px-2">En attente</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-blue-100 text-blue-700 text-[10px] px-2">En cours</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-700 text-[10px] px-2">Validé</Badge>;
-      default:
-        return null;
+  const handleToggleFavorite = (ecgId: string) => {
+    setFavoriteECGs(prev =>
+      prev.includes(ecgId)
+        ? prev.filter(id => id !== ecgId)
+        : [...prev, ecgId]
+    );
+  };
+
+  const handleCopyInfo = (ecg: any) => {
+    const info = `${ecg.id}\n${ecg.patientName}\n${ecg.patientAge} ans • ${ecg.patientGender === 'M' ? 'Homme' : 'Femme'}\n${ecg.hospital}\n${ecg.clinicalContext}`;
+    navigator.clipboard.writeText(info);
+    toast({
+      title: "✅ Informations copiées",
+      description: "Les informations ont été copiées dans le presse-papier",
+      duration: 2000,
+    });
+  };
+
+  const handleOpenChat = (ecg: any) => {
+    setSelectedECGForAction(ecg);
+    setChatDialogOpen(true);
+  };
+
+  const handleOpenPreview = (ecg: any) => {
+    setSelectedECGForAction(ecg);
+    setPreviewDialogOpen(true);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedECGs.length === filteredECGs.length) {
+      setSelectedECGs([]);
+    } else {
+      setSelectedECGs(filteredECGs.map(ecg => ecg.id));
     }
   };
 
+  // Objectif quotidien
+  const dailyGoal = 20;
+  const dailyProgress = (todayCompleted / dailyGoal) * 100;
+  const isAheadOfSchedule = todayCompleted > (dailyGoal * (new Date().getHours() / 24));
+
   return (
-    <div className="flex h-full">
-      {/* Sidebar Établissements */}
-      <aside className="w-56 border-r border-border/40 bg-background/50 flex-shrink-0 overflow-y-auto">
-        <div className="p-3">
-          {/* Section Nouveaux ECG */}
-          <nav className="space-y-0.5">
-            <button
-              onClick={() => navigate('/cardiologue/pending')}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium hover:bg-indigo-50 text-indigo-700 bg-indigo-50/50"
-            >
-              <div className="flex items-center gap-2">
-                <Inbox className="h-4 w-4" />
-                <span>Nouveaux ECG</span>
-              </div>
-              <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 text-[10px]">{counts.pending}</Badge>
-            </button>
-
-            <button
-              onClick={() => navigate('/cardiologue/urgent')}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium hover:bg-red-50 text-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <span>ECG urgents</span>
-              </div>
-              <Badge variant="secondary" className="bg-red-100 text-red-700 text-[10px]">{counts.urgent}</Badge>
-            </button>
-
-            <button
-              onClick={() => navigate('/cardiologue/second-opinion')}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium hover:bg-gray-100 text-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                <span>Second Avis</span>
-              </div>
-              <Badge variant="secondary" className="text-[10px]">1</Badge>
-            </button>
-          </nav>
-
-          {/* Section Établissements */}
-          <div className="mt-4 pt-4 border-t border-border/40">
-            <p className="px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Établissements
-            </p>
-            <nav className="space-y-0.5">
-              {establishments.slice(1).map(est => (
-                <button
-                  key={est.id}
-                  onClick={() => setSelectedEstablishment(est.id)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
-                    selectedEstablishment === est.id
-                      ? "bg-gray-100 text-gray-900"
-                      : "hover:bg-gray-50 text-gray-600"
-                  )}
-                >
-                  <span className="truncate">{est.name}</span>
-                  <span className="text-[11px] text-gray-400">{est.count}</span>
-                </button>
-              ))}
-            </nav>
+    <div className="space-y-3">
+      {/* En-tête - ULTRA-COMPACT */}
+      <div className="flex items-center justify-between h-9 bg-white rounded-lg px-4 shadow-sm border">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-indigo-600" />
+            <span className="text-sm font-semibold text-gray-900">Xpress ECG</span>
+          </div>
+          <div className="h-4 w-px bg-gray-300" />
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-xs text-gray-500">Session:</span>
+            <span className="text-sm font-mono font-semibold text-indigo-600">{sessionTimer}</span>
           </div>
         </div>
-      </aside>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-gray-400" />
+          <span className="text-xs text-gray-600">{format(new Date(), "d MMM yyyy", { locale: fr })}</span>
+        </div>
+      </div>
 
-      {/* Contenu principal */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-3">
-          {/* Header avec stats compactes inline - épuré */}
-          <div className="flex items-center justify-between">
-            <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="p-0 h-auto hover:bg-transparent">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-bold text-indigo-600">{counts.pending}</span>
-                      <span className="text-xs text-gray-500">Reçus</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-bold text-green-600">{counts.today}</span>
-                      <span className="text-xs text-gray-500">Analysés</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-bold text-blue-600">{counts.completed}</span>
-                      <span className="text-xs text-gray-500">Envoyés</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-bold text-amber-600">{notInterpreted}</span>
-                      <span className="text-xs text-gray-500">Non interprétés</span>
-                    </div>
-                    <ChevronDown className={cn(
-                      "h-3 w-3 text-gray-400 transition-transform",
-                      statsOpen && "rotate-180"
-                    )} />
-                  </div>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
-                <div className="grid grid-cols-4 gap-2">
-                  <Card className="bg-gradient-to-br from-indigo-50/80 to-transparent border-indigo-200/60">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-indigo-600 text-xs font-medium">Reçus</p>
-                          <p className="text-xl font-bold text-indigo-700">{counts.pending}</p>
-                        </div>
-                        <Inbox className="h-5 w-5 text-indigo-400" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-green-50/80 to-transparent border-green-200/60">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-green-600 text-xs font-medium">Analysés aujourd'hui</p>
-                          <p className="text-xl font-bold text-green-700">{counts.today}</p>
-                        </div>
-                        <CheckCircle2 className="h-5 w-5 text-green-400" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-blue-50/80 to-transparent border-blue-200/60">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-600 text-xs font-medium">Envoyés</p>
-                          <p className="text-xl font-bold text-blue-700">{counts.completed}</p>
-                        </div>
-                        <FileText className="h-5 w-5 text-blue-400" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gradient-to-br from-amber-50/80 to-transparent border-amber-200/60">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-amber-600 text-xs font-medium">Non interprétés</p>
-                          <p className="text-xl font-bold text-amber-700">{notInterpreted}</p>
-                        </div>
-                        <Clock className="h-5 w-5 text-amber-400" />
-                      </div>
-                    </CardContent>
-                  </Card>
+      {/* Focus Mode - COMPACT ET RÉTRACTILE */}
+      {nextECG && showFocusMode && (
+        <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-white" />
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    🚨 FOCUS MODE
+                    <Badge className="bg-red-500 text-white animate-pulse text-[10px]">REC</Badge>
+                  </h2>
+                  <p className="text-xs text-gray-600">
+                    {counts.pending} ECG • {urgentECGs.length} urgents • ~{counts.pending * 5} min
+                  </p>
+                </div>
+              </div>
 
+              <div className="flex-1 max-w-md">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-gray-600">Progression</span>
+                  <span className="font-semibold text-gray-900">{todayCompleted}/{dailyGoal}</span>
+                </div>
+                <Progress value={dailyProgress} className="h-1.5" />
+              </div>
+
+              <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-indigo-200">
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-semibold text-gray-900">PROCHAIN:</span>
+                    <span className="font-mono text-xs">{nextECG.id}</span>
+                    {nextECG.urgency === 'urgent' && (
+                      <Badge className="bg-red-500 text-white animate-pulse text-[10px] px-1.5 py-0">URGENT</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {nextECG.patientName} • {nextECG.patientAge} ans
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 h-8"
+                  onClick={() => handleStartAnalysis(nextECG.id)}
+                >
+                  <Play className="h-3 w-3" />
+                  Commencer
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Boutons de contrôle des sections */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          onClick={() => setShowFocusMode(!showFocusMode)}
+        >
+          {showFocusMode ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+          Focus
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          onClick={() => setShowStats(!showStats)}
+        >
+          {showStats ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+          Stats
+        </Button>
+      </div>
+
+      {/* Statistiques rapides - COMPACTES ET RÉTRACTILES */}
+      {showStats && (
+        <div className="grid grid-cols-4 gap-3">
+        <Card className="border-l-4 border-red-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('urgent')}>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">Urgents</p>
+                <p className="text-2xl font-bold text-gray-900">{urgentECGs.length}</p>
+              </div>
+              <div className="h-9 w-9 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-yellow-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('all')}>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">En attente</p>
+                <p className="text-2xl font-bold text-gray-900">{counts.pending}</p>
+              </div>
+              <div className="h-9 w-9 rounded-full bg-yellow-100 flex items-center justify-center">
+                <Clock className="h-4 w-4 text-yellow-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-green-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('today')}>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">Aujourd'hui</p>
+                <p className="text-2xl font-bold text-gray-900">{todayCompleted}</p>
+              </div>
+              <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-purple-500 hover:shadow-md transition-shadow">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">Temps moyen</p>
+                <p className="text-2xl font-bold text-gray-900">{avgAnalysisTime}</p>
+                <p className="text-[10px] text-gray-400">min/ECG</p>
+              </div>
+              <div className="h-9 w-9 rounded-full bg-purple-100 flex items-center justify-center">
+                <BarChart3 className="h-4 w-4 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      )}
+
+      {/* File d'attente */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Inbox className="h-5 w-5 text-indigo-600" />
+              File d'attente
+              <Badge variant="outline" className="ml-2">{filteredECGs.length} demandes</Badge>
+            </CardTitle>
             <div className="flex items-center gap-2">
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="w-[140px] h-8 text-xs">
-                  <Calendar className="h-3 w-3 mr-1" />
+              <Button variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Actualiser
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Filtres rapides + Recherche + Tri */}
+          <div className="px-4 py-3 border-b bg-gray-50 space-y-2">
+            {/* Ligne 1: Recherche + Tri */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher patient ou ID..."
+                  className="pl-9 h-8 text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortType)}>
+                <SelectTrigger className="w-[200px] h-8 text-xs">
+                  <ArrowUpDown className="h-3 w-3 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="today">Aujourd'hui</SelectItem>
-                  <SelectItem value="week">Cette semaine</SelectItem>
-                  <SelectItem value="month">Ce mois</SelectItem>
-                  <SelectItem value="all">Tout</SelectItem>
+                  <SelectItem value="recent">⏰ Plus récents</SelectItem>
+                  <SelectItem value="urgent-first">🚨 Urgences d'abord</SelectItem>
+                  <SelectItem value="oldest">⏱️ Plus anciens</SelectItem>
+                  <SelectItem value="hospital">🏥 Par établissement</SelectItem>
+                  <SelectItem value="doctor">👤 Par médecin</SelectItem>
+                  <SelectItem value="patient-name">🔤 Par nom (A-Z)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Ligne 2: Pills de filtre */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant={activeFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  "gap-2 h-7 text-xs",
+                  activeFilter === 'all' && "bg-indigo-600 text-white"
+                )}
+                onClick={() => setActiveFilter('all')}
+              >
+                Tout
+                <Badge variant="secondary" className="ml-1 text-[10px]">{pendingECGs.length}</Badge>
+              </Button>
+              <Button
+                variant={activeFilter === 'urgent' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  "gap-2 h-7 text-xs",
+                  activeFilter === 'urgent' && "bg-red-600 text-white"
+                )}
+                onClick={() => setActiveFilter('urgent')}
+              >
+                ⚡ Urgents
+                <Badge variant="secondary" className="ml-1 text-[10px]">{urgentECGs.length}</Badge>
+              </Button>
+              <Button
+                variant={activeFilter === 'today' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  "gap-2 h-7 text-xs",
+                  activeFilter === 'today' && "bg-green-600 text-white"
+                )}
+                onClick={() => setActiveFilter('today')}
+              >
+                📅 Aujourd'hui
+                <Badge variant="secondary" className="ml-1 text-[10px]">
+                  {pendingECGs.filter(e => format(parseISO(e.ecgDate), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')).length}
+                </Badge>
+              </Button>
+              <Button
+                variant={activeFilter === 'favorites' ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  "gap-2 h-7 text-xs",
+                  activeFilter === 'favorites' && "bg-yellow-600 text-white"
+                )}
+                onClick={() => setActiveFilter('favorites')}
+              >
+                ⭐ Favoris
+                <Badge variant="secondary" className="ml-1 text-[10px]">{favoriteECGs.length}</Badge>
+              </Button>
+            </div>
           </div>
 
-          {/* Alerte urgents */}
-          {urgentECGs.length > 0 && (
-            <Card className="border-red-200 bg-gradient-to-r from-red-50 to-transparent">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 bg-red-100 rounded-lg flex items-center justify-center">
-                      <AlertTriangle className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-red-800 text-sm">
-                        {urgentECGs.length} ECG urgent(s) en attente
-                      </p>
-                      <p className="text-xs text-red-600">Nécessite une attention immédiate</p>
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700 h-8 text-xs"
-                    onClick={() => handleStartAnalysis(urgentECGs[0].id)}
+          {/* Toolbar */}
+          <div className="flex items-center gap-4 px-4 py-2 border-b bg-white">
+            <Checkbox
+              checked={selectedECGs.length === filteredECGs.length && filteredECGs.length > 0}
+              onCheckedChange={handleSelectAll}
+            />
+            <span className="text-xs text-gray-600">
+              {selectedECGs.length > 0 ? `${selectedECGs.length} sélectionné(s)` : 'Tout sélectionner'}
+            </span>
+            {selectedECGs.length > 0 && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  Assigner à...
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs">
+                  Archiver
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Liste */}
+          <div className="divide-y" ref={listRef}>
+            {filteredECGs.map((ecg, index) => {
+              const isHovered = hoveredECG === ecg.id;
+              const isSelected = selectedECGs.includes(ecg.id);
+              const isFavorite = favoriteECGs.includes(ecg.id);
+              const isUrgent = ecg.urgency === 'urgent' || ecg.urgency === 'critical';
+              const isFocused = index === focusedIndex;
+
+              return (
+                <div
+                  key={ecg.id}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 transition-all duration-150",
+                    isSelected && "bg-indigo-50 border-l-4 border-indigo-500",
+                    !isSelected && isFocused && "bg-indigo-100 border-l-4 border-indigo-600",
+                    !isSelected && !isFocused && isHovered && "bg-gray-50",
+                    !isSelected && !isFocused && !isHovered && "bg-white",
+                    isUrgent && !isSelected && !isFocused && "border-l-4 border-red-500"
+                  )}
+                  onMouseEnter={() => setHoveredECG(ecg.id)}
+                  onMouseLeave={() => setHoveredECG(null)}
+                  onClick={() => setFocusedIndex(index)}
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => handleSelectECG(ecg.id)}
+                  />
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite(ecg.id);
+                    }}
+                    className="transition-colors"
                   >
-                    Traiter maintenant
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Barre de recherche et filtres */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher un patient, ECG..."
-                className="pl-9 h-9 text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Button variant="outline" size="sm" className="h-9">
-              <Filter className="h-4 w-4 mr-1" />
-              Filtres
-            </Button>
-            <Button variant="outline" size="sm" className="h-9">
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Actualiser
-            </Button>
-          </div>
-
-          {/* Titre section */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Inbox className="h-5 w-5 text-indigo-600" />
-              <h2 className="font-semibold text-gray-900">Nouveaux ECG en attente</h2>
-            </div>
-            <span className="text-sm text-gray-500">{filteredECGs.length} résultats</span>
-          </div>
-
-          {/* Tableau des ECG */}
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border/60 bg-gray-50/50">
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Établissement</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Date / Heure</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredECGs.map((ecg) => (
-                    <tr 
-                      key={ecg.id} 
+                    <Star
                       className={cn(
-                        "hover:bg-gray-50/50 transition-colors",
-                        ecg.urgency === 'urgent' && "bg-red-50/30"
+                        "h-4 w-4",
+                        isFavorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"
                       )}
+                    />
+                  </button>
+
+                  <div className="w-20 flex-shrink-0">
+                    {ecg.urgency === 'urgent' && (
+                      <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 animate-pulse">
+                        URGENT
+                      </Badge>
+                    )}
+                    {ecg.urgency === 'critical' && (
+                      <Badge className="bg-red-700 text-white text-[10px] px-1.5 py-0 animate-pulse">
+                        CRITICAL
+                      </Badge>
+                    )}
+                    {ecg.urgency === 'normal' && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        Normal
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="w-28 flex-shrink-0">
+                    <span className="font-mono text-xs font-medium text-gray-900">{ecg.id}</span>
+                  </div>
+
+                  <div className="w-44 flex-shrink-0">
+                    <p className="font-semibold text-sm text-gray-900">{ecg.patientName}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {ecg.patientAge} ans • {ecg.patientGender === 'M' ? 'H' : 'F'} • {ecg.hospital}
+                    </p>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-600 truncate">{ecg.clinicalContext}</p>
+                  </div>
+
+                  <div className="w-12 flex-shrink-0 text-right">
+                    <p className="text-[10px] text-gray-500">
+                      {format(parseISO(ecg.ecgDate), 'HH:mm')}
+                    </p>
+                  </div>
+
+                  <div className={cn(
+                    "flex items-center gap-1 transition-opacity duration-150",
+                    (isHovered || isFocused) ? "opacity-100" : "opacity-0"
+                  )}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleOpenChat(ecg)}
+                      title="Chat (1)"
                     >
-                      <td className="py-3 px-4">
-                        <div className="flex flex-col">
-                          <span className="font-mono text-sm text-indigo-600 font-medium">{ecg.id}</span>
-                          {ecg.urgency === 'urgent' && (
-                            <Badge className="bg-red-500 text-white text-[9px] px-1.5 py-0 w-fit mt-0.5">
-                              ⚡ URGENT
-                            </Badge>
-                          )}
-                          {ecg.urgency === 'critical' && (
-                            <Badge className="bg-red-700 text-white text-[9px] px-1.5 py-0 w-fit mt-0.5">
-                              ⚡ CRITICAL
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium",
-                            ecg.patientGender === 'M' 
-                              ? "bg-blue-100 text-blue-700" 
-                              : "bg-pink-100 text-pink-700"
-                          )}>
-                            {ecg.patientGender === 'M' ? 'M' : 'F'}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-gray-900">{ecg.patientName}</p>
-                            <p className="text-xs text-gray-500">{ecg.patientAge} ans</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm text-gray-900">{ecg.hospital}</p>
-                          <p className="text-xs text-gray-500">{ecg.referringDoctor}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm text-gray-900">
-                            {format(parseISO(ecg.dateAssigned), 'dd MMM yyyy', { locale: fr })}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {format(parseISO(ecg.dateAssigned), 'HH:mm', { locale: fr })}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        {getStatusBadge(ecg.status, ecg.urgency)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleStartAnalysis(ecg.id)}
-                            title="Analyser"
-                          >
-                            <FileText className="h-4 w-4 text-gray-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Aperçu"
-                          >
-                            <Eye className="h-4 w-4 text-gray-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Copier"
-                          >
-                            <FileText className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                      <MessageSquare className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleCopyInfo(ecg)}
+                      title="Copier (2)"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => handleOpenPreview(ecg)}
+                      title="Aperçu (3)"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-2 gap-1 text-xs"
+                      onClick={() => handleStartAnalysis(ecg.id)}
+                      title="Analyser (4 ou Enter)"
+                    >
+                      <Play className="h-3 w-3" />
+                      Analyser
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-                  {/* Exemples supplémentaires pour remplir le tableau */}
-                  <tr className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-sm text-indigo-600 font-medium">ECG-2025-0411</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium bg-pink-100 text-pink-700">F</div>
-                        <div>
-                          <p className="font-medium text-sm text-gray-900">Marie Laurent</p>
-                          <p className="text-xs text-gray-500">47 ans</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">Clinique du Sport</p>
-                        <p className="text-xs text-gray-500">Dr. Sophie Bernard</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{format(new Date(), 'dd MMM yyyy', { locale: fr })}</p>
-                        <p className="text-xs text-gray-500">10:01</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge className="bg-blue-100 text-blue-700 text-[10px] px-2">En cours</Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Eye className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-sm text-indigo-600 font-medium">ECG-2025-0410</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium bg-blue-100 text-blue-700">M</div>
-                        <div>
-                          <p className="font-medium text-sm text-gray-900">Jean-Paul Mercier</p>
-                          <p className="text-xs text-gray-500">74 ans</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">Centre Cardio Paris</p>
-                        <p className="text-xs text-gray-500">Dr. François Dubois</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{format(new Date(), 'dd MMM yyyy', { locale: fr })}</p>
-                        <p className="text-xs text-gray-500">08:01</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge className="bg-green-100 text-green-700 text-[10px] px-2">Validé</Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Eye className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-gray-50/50 transition-colors bg-red-50/30">
-                    <td className="py-3 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-mono text-sm text-indigo-600 font-medium">ECG-2025-0409</span>
-                        <Badge className="bg-red-700 text-white text-[9px] px-1.5 py-0 w-fit mt-0.5">
-                          ⚡ CRITICAL
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium bg-pink-100 text-pink-700">F</div>
-                        <div>
-                          <p className="font-medium text-sm text-gray-900">Élise Moreau</p>
-                          <p className="text-xs text-gray-500">57 ans</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">Hôpital Saint-Louis</p>
-                        <p className="text-xs text-gray-500">Dr. Jean Martin</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{format(new Date(), 'dd MMM yyyy', { locale: fr })}</p>
-                        <p className="text-xs text-gray-500">07:01</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge className="bg-amber-100 text-amber-700 text-[10px] px-2">En attente</Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Eye className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          {/* Footer */}
+          <div className="px-4 py-3 border-t bg-gray-50">
+            <div className="flex items-center gap-6 text-xs text-gray-500">
+              <span><kbd className="px-1.5 py-0.5 bg-white border rounded">↑↓</kbd> Naviguer</span>
+              <span><kbd className="px-1.5 py-0.5 bg-white border rounded">Espace</kbd> Sélectionner</span>
+              <span><kbd className="px-1.5 py-0.5 bg-white border rounded">Enter</kbd> Analyser</span>
+              <span><kbd className="px-1.5 py-0.5 bg-white border rounded">1-4</kbd> Actions</span>
             </div>
-          </Card>
-        </div>
-      </main>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialogs */}
+      <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-indigo-600" />
+              Chat avec {selectedECGForAction?.referringDoctor}
+            </DialogTitle>
+            <DialogDescription>
+              Concernant l'ECG de {selectedECGForAction?.patientName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-gray-50 rounded-lg p-3 text-sm">
+              <p className="font-medium text-gray-900 mb-1">{selectedECGForAction?.patientName}</p>
+              <p className="text-xs text-gray-500">{selectedECGForAction?.id} • {selectedECGForAction?.clinicalContext}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">Cette fonctionnalité permettra de communiquer directement avec le médecin référent.</p>
+              <p className="text-xs text-gray-400">🚧 En cours de développement</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChatDialogOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-indigo-600" />
+              Aperçu rapide - {selectedECGForAction?.id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Patient</p>
+                <p className="text-sm text-gray-600">{selectedECGForAction?.patientName}</p>
+                <p className="text-xs text-gray-500">
+                  {selectedECGForAction?.patientAge} ans • {selectedECGForAction?.patientGender === 'M' ? 'Homme' : 'Femme'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Établissement</p>
+                <p className="text-sm text-gray-600">{selectedECGForAction?.hospital}</p>
+                <p className="text-xs text-gray-500">{selectedECGForAction?.referringDoctor}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900 mb-1">Contexte clinique</p>
+              <p className="text-sm text-gray-600">{selectedECGForAction?.clinicalContext}</p>
+            </div>
+            <div className="bg-gray-100 rounded-lg h-48 flex items-center justify-center">
+              <div className="text-center text-gray-400">
+                <Activity className="h-12 w-12 mx-auto mb-2" />
+                <p className="text-sm">Miniature ECG</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
+              Fermer
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700"
+              onClick={() => {
+                setPreviewDialogOpen(false);
+                handleStartAnalysis(selectedECGForAction.id);
+              }}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Analyser
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

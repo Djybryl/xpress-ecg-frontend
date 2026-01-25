@@ -94,11 +94,20 @@ export function AppRouter({ user, onLogin, onLogout }: AppRouterProps) {
         { index: true, element: <CardiologueDashboard /> },
         { path: 'pending', element: <PendingECG /> },
         { path: 'urgent', element: <PendingECG /> },
-        { path: 'analyze/:ecgId', element: <AnalyzeECG /> },
         { path: 'completed', element: <CompletedECG /> },
         { path: 'reports', element: <CompletedECG /> },
         { path: 'statistics', element: <div className="p-6"><h1 className="text-2xl font-bold">Statistiques</h1><p className="text-gray-500">Page en construction...</p></div> },
       ],
+    },
+
+    // Route AnalyzeECG en PLEIN ÉCRAN (sans sidebar)
+    {
+      path: '/cardiologue/analyze/:ecgId',
+      element: (
+        <ProtectedRoute user={user} allowedRoles={['cardiologue']}>
+          <AnalyzeECG />
+        </ProtectedRoute>
+      ),
     },
 
     // Routes Médecin
