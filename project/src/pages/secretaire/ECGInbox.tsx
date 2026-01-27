@@ -152,69 +152,6 @@ export function ECGInbox() {
         </Button>
       </div>
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-600 text-sm font-medium">En attente</p>
-                <p className="text-2xl font-bold text-amber-700">{counts.received}</p>
-              </div>
-              <div className="h-10 w-10 bg-amber-200 rounded-full flex items-center justify-center">
-                <Clock className="h-5 w-5 text-amber-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-600 text-sm font-medium">Urgents</p>
-                <p className="text-2xl font-bold text-red-700">
-                  {receivedECGs.filter(e => e.urgency === 'urgent').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-red-200 rounded-full flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-red-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">Validés aujourd'hui</p>
-                <p className="text-2xl font-bold text-green-700">{counts.validated}</p>
-              </div>
-              <div className="h-10 w-10 bg-green-200 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">Total en file</p>
-                <p className="text-2xl font-bold text-blue-700">
-                  {counts.received + counts.validated}
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-blue-200 rounded-full flex items-center justify-center">
-                <Inbox className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Filtres et actions */}
       <Card>
         <CardContent className="p-4">

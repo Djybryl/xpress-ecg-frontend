@@ -137,55 +137,6 @@ export function PatientsPage() {
         </div>
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <User className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{patients.length}</p>
-              <p className="text-sm text-gray-500">Patients</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Activity className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {patients.reduce((acc, p) => acc + p.ecgCount, 0)}
-              </p>
-              <p className="text-sm text-gray-500">ECG au total</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-              <Clock className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {patients.filter(p => {
-                  if (!p.lastEcgDate) return false;
-                  const lastEcg = new Date(p.lastEcgDate);
-                  const weekAgo = new Date();
-                  weekAgo.setDate(weekAgo.getDate() - 7);
-                  return lastEcg > weekAgo;
-                }).length}
-              </p>
-              <p className="text-sm text-gray-500">ECG cette semaine</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Tableau des patients */}
       <Card>
         <CardHeader className="border-b">

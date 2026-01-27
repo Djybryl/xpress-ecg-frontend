@@ -183,38 +183,8 @@ export function ECGAssignment() {
         </Button>
       </div>
 
-      {/* Statistiques et Cardiologues */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Stats */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-indigo-600" />
-              Statistiques
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-              <span className="text-sm text-amber-700">À assigner</span>
-              <Badge className="bg-amber-100 text-amber-700">{counts.validated}</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm text-blue-700">En analyse</span>
-              <Badge className="bg-blue-100 text-blue-700">
-                {counts.assigned + (counts.analyzing || 0)}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-              <span className="text-sm text-red-700">Urgents en attente</span>
-              <Badge className="bg-red-100 text-red-700">
-                {validatedECGs.filter(e => e.urgency === 'urgent').length}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Liste des cardiologues */}
-        <Card className="lg:col-span-2">
+      {/* Liste des cardiologues - Pleine largeur */}
+      <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="h-5 w-5 text-indigo-600" />
@@ -262,8 +232,7 @@ export function ECGAssignment() {
               ))}
             </div>
           </CardContent>
-        </Card>
-      </div>
+      </Card>
 
       {/* Filtres et actions */}
       <Card>

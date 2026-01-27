@@ -184,56 +184,6 @@ export function ReportsPage() {
         </div>
       )}
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className={cn(
-          'cursor-pointer transition-colors',
-          filterStatus === 'all' && 'ring-2 ring-indigo-500'
-        )} onClick={() => setFilterStatus('all')}>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-              <FileText className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{reports.length}</p>
-              <p className="text-sm text-gray-500">Total des rapports</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          'cursor-pointer transition-colors',
-          filterStatus === 'unread' && 'ring-2 ring-amber-500'
-        )} onClick={() => setFilterStatus('unread')}>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-              <Bell className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{unreadCount}</p>
-              <p className="text-sm text-gray-500">Non lus</p>
-            </div>
-            {unreadCount > 0 && (
-              <Badge className="ml-auto bg-amber-100 text-amber-700">Nouveau</Badge>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          'cursor-pointer transition-colors',
-          filterStatus === 'read' && 'ring-2 ring-green-500'
-        )} onClick={() => setFilterStatus('read')}>
-          <CardContent className="flex items-center gap-4 py-4">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{reports.filter(r => r.isRead).length}</p>
-              <p className="text-sm text-gray-500">Consultés</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Tableau des rapports */}
       <Card>

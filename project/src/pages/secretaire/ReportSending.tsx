@@ -153,67 +153,6 @@ export function ReportSending() {
         </Button>
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">Prêts à envoyer</p>
-                <p className="text-2xl font-bold text-green-700">{counts.ready_to_send}</p>
-              </div>
-              <div className="h-10 w-10 bg-green-200 rounded-full flex items-center justify-center">
-                <Mail className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-600 text-sm font-medium">Urgents</p>
-                <p className="text-2xl font-bold text-red-700">
-                  {readyToSend.filter(e => e.urgency === 'urgent').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-red-200 rounded-full flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-red-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">Envoyés aujourd'hui</p>
-                <p className="text-2xl font-bold text-blue-700">{counts.sent}</p>
-              </div>
-              <div className="h-10 w-10 bg-blue-200 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-600 text-sm font-medium">Temps moyen</p>
-                <p className="text-2xl font-bold text-purple-700">~2h</p>
-              </div>
-              <div className="h-10 w-10 bg-purple-200 rounded-full flex items-center justify-center">
-                <Clock className="h-5 w-5 text-purple-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Filtres et actions */}
       <Card>
         <CardContent className="p-4">

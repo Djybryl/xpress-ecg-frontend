@@ -15,6 +15,9 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  DollarSign,
+  CreditCard,
+  TrendingUp,
   type LucideIcon
 } from 'lucide-react';
 
@@ -53,6 +56,13 @@ export const cardiologueNavigation: NavigationConfig = {
       icon: AlertCircle,
       badge: 3,
       badgeVariant: 'danger'
+    },
+    { 
+      label: 'Attente Second Avis', 
+      path: '/cardiologue/second-opinion', 
+      icon: Users,
+      badge: 2,
+      badgeVariant: 'default'
     },
     { 
       label: 'En cours d\'analyse', 
@@ -185,6 +195,23 @@ export const adminNavigation: NavigationConfig = {
       label: 'Statistiques', 
       path: '/admin/statistics', 
       icon: BarChart2 
+    },
+    { 
+      label: 'Paramètres tarifaires', 
+      path: '/admin/tarifs', 
+      icon: Settings 
+    },
+    { 
+      label: 'Émoluments & Paiements', 
+      path: '/admin/emoluments', 
+      icon: CreditCard,
+      badge: '2 en attente',
+      badgeVariant: 'warning'
+    },
+    { 
+      label: 'Rapports financiers', 
+      path: '/admin/financial', 
+      icon: TrendingUp 
     },
   ],
   secondary: [
