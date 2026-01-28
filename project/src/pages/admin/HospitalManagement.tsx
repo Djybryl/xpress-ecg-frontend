@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Building2, 
   Search, 
@@ -81,6 +81,26 @@ export function HospitalManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
   const [isNewHospital, setIsNewHospital] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ⌨️ Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+N : Nouvel établissement
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !editDialogOpen) {
+        e.preventDefault();
+        handleOpenNew();
+      }
+      // Ctrl+F : Focus recherche
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editDialogOpen]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -172,109 +192,43 @@ export function HospitalManagement() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-indigo-600" />
-            Gestion des établissements
-          </h1>
-          <p className="text-gray-500 mt-1">Gérez les hôpitaux et cliniques partenaires</p>
+    <div className="space-y-3">
+      {/* En-tête compact + Filtres inline */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-indigo-600" />
+          <h1 className="text-base font-semibold text-slate-800">Établissements</h1>
+          <span className="text-[10px] text-slate-400">({filteredHospitals.length})</span>
         </div>
-        <Button onClick={handleOpenNew} className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Nouvel établissement
-        </Button>
-      </div>
-
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-indigo-600 text-sm font-medium">Total</p>
-                <p className="text-2xl font-bold text-indigo-700">{stats.totalHospitals}</p>
-              </div>
-              <div className="h-10 w-10 bg-indigo-200 rounded-full flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-indigo-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">Actifs</p>
-                <p className="text-2xl font-bold text-green-700">{stats.activeHospitals}</p>
-              </div>
-              <div className="h-10 w-10 bg-green-200 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">Utilisateurs</p>
-                <p className="text-2xl font-bold text-blue-700">{totalUsers}</p>
-              </div>
-              <div className="h-10 w-10 bg-blue-200 rounded-full flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-600 text-sm font-medium">ECG total</p>
-                <p className="text-2xl font-bold text-purple-700">{totalECG.toLocaleString()}</p>
-              </div>
-              <div className="h-10 w-10 bg-purple-200 rounded-full flex items-center justify-center">
-                <Activity className="h-5 w-5 text-purple-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtres */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher par nom ou ville..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                <SelectItem value="active">Actifs</SelectItem>
-                <SelectItem value="inactive">Inactifs</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Rechercher... (Ctrl+F)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 h-8 w-[180px] text-xs"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[100px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="active">Actifs</SelectItem>
+              <SelectItem value="inactive">Inactifs</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8" title="Ctrl+N">
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nouveau
+          </Button>
+        </div>
+      </div>
 
-      {/* Liste des établissements */}
+      {/* Liste des établissements (filtres dans header) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">

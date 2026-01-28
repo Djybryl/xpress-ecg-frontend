@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -94,6 +94,26 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ⌨️ Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+N : Nouvel utilisateur
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !editDialogOpen) {
+        e.preventDefault();
+        handleOpenNew();
+      }
+      // Ctrl+F : Focus recherche
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editDialogOpen]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
@@ -203,144 +223,68 @@ export function UserManagement() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="h-6 w-6 text-indigo-600" />
-            Gestion des utilisateurs
-          </h1>
-          <p className="text-gray-500 mt-1">Gérez les comptes utilisateurs de la plateforme</p>
+    <div className="space-y-3">
+      {/* En-tête + Filtres inline compact */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-indigo-600" />
+          <h1 className="text-base font-semibold text-slate-800">Utilisateurs</h1>
+          <span className="text-[10px] text-slate-400">({filteredUsers.length})</span>
         </div>
-        <Button onClick={handleOpenNew} className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Nouvel utilisateur
-        </Button>
-      </div>
-
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-indigo-600 text-sm font-medium">Total</p>
-                <p className="text-2xl font-bold text-indigo-700">{stats.totalUsers}</p>
-              </div>
-              <div className="h-10 w-10 bg-indigo-200 rounded-full flex items-center justify-center">
-                <Users className="h-5 w-5 text-indigo-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">Actifs</p>
-                <p className="text-2xl font-bold text-green-700">{stats.activeUsers}</p>
-              </div>
-              <div className="h-10 w-10 bg-green-200 rounded-full flex items-center justify-center">
-                <UserCheck className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-600 text-sm font-medium">En attente</p>
-                <p className="text-2xl font-bold text-amber-700">
-                  {users.filter(u => u.status === 'pending').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-amber-200 rounded-full flex items-center justify-center">
-                <Clock className="h-5 w-5 text-amber-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Inactifs</p>
-                <p className="text-2xl font-bold text-gray-700">
-                  {users.filter(u => u.status === 'inactive').length}
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                <UserX className="h-5 w-5 text-gray-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtres */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher par nom ou email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Rôle" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les rôles</SelectItem>
-                <SelectItem value="cardiologue">Cardiologue</SelectItem>
-                <SelectItem value="medecin">Médecin</SelectItem>
-                <SelectItem value="secretaire">Secrétaire</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                <SelectItem value="active">Actifs</SelectItem>
-                <SelectItem value="inactive">Inactifs</SelectItem>
-                <SelectItem value="pending">En attente</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Rechercher... (Ctrl+F)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 h-8 w-[180px] text-xs"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-[120px] h-8 text-xs">
+              <SelectValue placeholder="Rôle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="cardiologue">Cardio</SelectItem>
+              <SelectItem value="medecin">Médecin</SelectItem>
+              <SelectItem value="secretaire">Secrét.</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[100px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="active">Actifs</SelectItem>
+              <SelectItem value="pending">Attente</SelectItem>
+              <SelectItem value="inactive">Inactifs</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8" title="Ctrl+N">
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nouveau
+          </Button>
+        </div>
+      </div>
 
-      {/* Liste des utilisateurs */}
+      {/* Table utilisateurs */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">
-            Utilisateurs ({filteredUsers.length})
-          </CardTitle>
-        </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead>Utilisateur</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Établissement</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Dernière connexion</TableHead>
-                <TableHead>ECG</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-slate-50 h-9">
+              <TableRow>
+                <TableHead className="text-xs">Utilisateur</TableHead>
+                <TableHead className="text-xs">Rôle</TableHead>
+                <TableHead className="text-xs">Établissement</TableHead>
+                <TableHead className="text-xs">Statut</TableHead>
+                <TableHead className="text-xs">Connexion</TableHead>
+                <TableHead className="text-xs">ECG</TableHead>
+                <TableHead className="text-xs text-right w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

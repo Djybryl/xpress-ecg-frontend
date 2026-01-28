@@ -120,15 +120,12 @@ export function FinancialReports() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-purple-600" />
-            Rapports Financiers
-          </h1>
-          <p className="text-gray-500 mt-1">Vue synthétique du chiffre d'affaires et des marges</p>
+    <div className="space-y-3">
+      {/* En-tête compact */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-purple-600" />
+          <h1 className="text-base font-semibold text-slate-800">Rapports Financiers</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
@@ -182,114 +179,67 @@ export function FinancialReports() {
         </Select>
       </div>
 
-      {/* Revenus & Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-600" />
-            Revenus & Distribution ({selectedPeriod})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Chiffre d'affaires */}
-          <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-600 font-medium mb-1">CHIFFRE D'AFFAIRES</p>
-                <p className="text-3xl font-bold text-green-700">
-                  {formatFCFA(periodData.totalRevenue)}
-                </p>
-                <p className="text-sm text-green-600 mt-1">
-                  {periodData.ecgCount} ECG × {formatFCFA(tarifConfig.ecgCostPatient)}
-                </p>
+      {/* KPIs Compact - style Dashboard */}
+      <div className="grid grid-cols-4 gap-2">
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-green-100 rounded flex items-center justify-center flex-shrink-0">
+                <DollarSign className="h-4 w-4 text-green-700" />
               </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-8 w-8 text-green-600" />
-                <Badge className="bg-green-600 text-white">
-                  +12% vs Nov
-                </Badge>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">CA ({selectedPeriod})</p>
+                <p className="text-base font-bold text-slate-800 leading-tight truncate">{formatFCFA(periodData.totalRevenue)}</p>
+              </div>
+              <p className="text-[9px] text-green-600">+12%</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-indigo-100 rounded flex items-center justify-center flex-shrink-0">
+                <Users className="h-4 w-4 text-indigo-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Émoluments</p>
+                <p className="text-base font-bold text-slate-800 leading-tight truncate">{formatFCFA(periodData.totalEmoluments)}</p>
+              </div>
+              <p className="text-[9px] text-slate-400">{Math.round((periodData.totalEmoluments / periodData.totalRevenue) * 100)}%</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-amber-100 rounded flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="h-4 w-4 text-amber-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Bonus</p>
+                <p className="text-base font-bold text-slate-800 leading-tight truncate">{formatFCFA(periodData.totalBonus)}</p>
               </div>
             </div>
-          </div>
-
-          {/* Distribution */}
-          <div>
-            <p className="text-sm font-semibold text-gray-700 mb-3">DISTRIBUTION (sans bonus)</p>
-            <div className="space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium flex items-center gap-2">
-                    <span className="w-3 h-3 bg-indigo-500 rounded"></span>
-                    👨‍⚕️ Cardiologues ({tarifConfig.cardiologuePercent}%)
-                  </span>
-                  <span className="text-sm font-bold">{formatFCFA(periodData.totalRevenue * tarifConfig.cardiologuePercent / 100)}</span>
-                </div>
-                <Progress 
-                  value={tarifConfig.cardiologuePercent} 
-                  className="h-3 [&>div]:bg-indigo-500"
-                />
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-slate-50 border-slate-200">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-slate-100 rounded flex items-center justify-center flex-shrink-0">
+                <Building2 className="h-4 w-4 text-slate-700" />
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium flex items-center gap-2">
-                    <span className="w-3 h-3 bg-emerald-500 rounded"></span>
-                    🩺 Médecins ({tarifConfig.medecinPercent}%)
-                  </span>
-                  <span className="text-sm font-bold">{formatFCFA(periodData.totalRevenue * tarifConfig.medecinPercent / 100)}</span>
-                </div>
-                <Progress 
-                  value={tarifConfig.medecinPercent} 
-                  className="h-3 [&>div]:bg-emerald-500"
-                />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Plateforme</p>
+                <p className="text-base font-bold text-slate-800 leading-tight truncate">{formatFCFA(periodData.platformRevenue)}</p>
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium flex items-center gap-2">
-                    <span className="w-3 h-3 bg-slate-500 rounded"></span>
-                    🏢 Plateforme ({tarifConfig.platformPercent}%)
-                  </span>
-                  <span className="text-sm font-bold">{formatFCFA(periodData.totalRevenue * tarifConfig.platformPercent / 100)}</span>
-                </div>
-                <Progress 
-                  value={tarifConfig.platformPercent} 
-                  className="h-3 [&>div]:bg-slate-500"
-                />
-              </div>
+              <p className="text-[9px] text-slate-400">{Math.round((periodData.platformRevenue / periodData.totalRevenue) * 100)}%</p>
             </div>
-          </div>
-
-          {/* Bonus distribués */}
-          <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-amber-700 font-medium">🏆 BONUS DISTRIBUÉS</p>
-                <p className="text-xl font-bold text-amber-700 mt-1">
-                  {formatFCFA(periodData.totalBonus)}
-                </p>
-                <p className="text-xs text-amber-600 mt-1">
-                  Volume, qualité, urgents, astreintes
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Totaux */}
-          <div className="pt-4 border-t-2 space-y-2">
-            <div className="flex items-center justify-between text-base">
-              <span className="font-semibold">💰 Émoluments totaux :</span>
-              <span className="font-bold text-indigo-600">{formatFCFA(periodData.totalEmoluments)}</span>
-              <Badge variant="secondary">{Math.round((periodData.totalEmoluments / periodData.totalRevenue) * 100)}%</Badge>
-            </div>
-            <div className="flex items-center justify-between text-base">
-              <span className="font-semibold">🏢 Revenus nets plateforme :</span>
-              <span className="font-bold text-slate-600">{formatFCFA(periodData.platformRevenue)}</span>
-              <Badge variant="secondary">{Math.round((periodData.platformRevenue / periodData.totalRevenue) * 100)}%</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Évolution 6 mois */}
       <Card>

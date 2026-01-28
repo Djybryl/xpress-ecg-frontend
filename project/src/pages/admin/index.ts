@@ -5,3 +5,4 @@ export { Statistics } from './Statistics';
 export { TarifSettings } from './TarifSettings';
 export { Emoluments } from './Emoluments';
 export { FinancialReports } from './FinancialReports';
+export { SpecialEmoluments } from './SpecialEmoluments';

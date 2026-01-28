@@ -18,6 +18,7 @@ import {
   DollarSign,
   CreditCard,
   TrendingUp,
+  Star,
   type LucideIcon
 } from 'lucide-react';
 
@@ -207,6 +208,11 @@ export const adminNavigation: NavigationConfig = {
       icon: CreditCard,
       badge: '2 en attente',
       badgeVariant: 'warning'
+    },
+    { 
+      label: 'Émoluments spéciaux', 
+      path: '/admin/special-emoluments', 
+      icon: Star
     },
     { 
       label: 'Rapports financiers', 

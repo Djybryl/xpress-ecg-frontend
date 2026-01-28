@@ -97,6 +97,44 @@ export interface ConfigHistory {
   newConfig: Partial<TarifConfig>;
 }
 
+// Émoluments spéciaux (tarifs individuels personnalisés)
+export interface SpecialEmolument {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: 'cardiologue' | 'medecin';
+  isActive: boolean;
+  
+  // Type de tarif spécial
+  customRate: {
+    type: 'percentage' | 'fixed_per_ecg' | 'hybrid';
+    
+    // Si type = percentage (ex: 75% au lieu de 60% standard)
+    percentageOverride?: number;
+    
+    // Si type = fixed_per_ecg (ex: 12,000 FCFA par ECG quel que soit le coût patient)
+    fixedAmountPerEcg?: number;
+    
+    // Si type = hybrid (base % + bonus fixe par ECG)
+    basePercentage?: number;
+    bonusPerEcg?: number;
+  };
+  
+  // Conditions d'application (optionnel)
+  conditions?: {
+    minEcgPerMonth?: number; // Actif seulement si > X ECG/mois
+    specificHospitals?: string[]; // Appliquer uniquement pour certains hôpitaux
+    validUntil?: string; // Date d'expiration ISO
+  };
+  
+  // Traçabilité
+  reason: string; // "Expert senior", "Partenariat VIP", "Compensation", etc.
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 interface EconomyStore {
   // Configuration
   tarifConfig: TarifConfig;
@@ -128,6 +166,13 @@ interface EconomyStore {
   // Utilitaires
   getHospitalCost: (hospitalId: string) => number;
   resetToDefaults: () => void;
+  
+  // Émoluments spéciaux
+  specialEmoluments: SpecialEmolument[];
+  addSpecialEmolument: (emolument: Omit<SpecialEmolument, 'id' | 'createdAt'>) => void;
+  updateSpecialEmolument: (id: string, updates: Partial<SpecialEmolument>) => void;
+  deleteSpecialEmolument: (id: string) => void;
+  getSpecialEmolumentForUser: (userId: string, hospitalId?: string) => SpecialEmolument | undefined;
 }
 
 // Configuration par défaut
@@ -277,6 +322,7 @@ export const useEconomyStore = create<EconomyStore>()(
       configHistory: [],
       emoluments: mockEmoluments,
       monthlyReports: [],
+      specialEmoluments: [],
 
       // Mise à jour configuration tarifaire
       updateTarifConfig: (config, userId, userName) => {
@@ -353,14 +399,49 @@ export const useEconomyStore = create<EconomyStore>()(
 
         let baseAmount = 0;
 
-        if (userRole === 'cardiologue') {
-          // Cardiologue : % du coût ECG × nb ECG + second avis
-          const perEcgAmount = (hospitalCost * config.cardiologuePercent) / 100;
-          baseAmount = (ecgCount * perEcgAmount) + (secondOpinions * config.secondOpinionCost);
+        // ✨ VÉRIFIER ÉMOLUMENT SPÉCIAL
+        const specialEmolument = get().getSpecialEmolumentForUser(userId, activityData.hospitalId);
+        
+        if (specialEmolument) {
+          // Vérifier condition minEcgPerMonth
+          const meetsMinimum = !specialEmolument.conditions?.minEcgPerMonth || 
+                                ecgCount >= specialEmolument.conditions.minEcgPerMonth;
+          
+          if (meetsMinimum) {
+            // Appliquer tarif spécial
+            const { customRate } = specialEmolument;
+            
+            if (customRate.type === 'percentage') {
+              const perEcgAmount = (hospitalCost * (customRate.percentageOverride || 0)) / 100;
+              baseAmount = (ecgCount * perEcgAmount) + (secondOpinions * config.secondOpinionCost);
+            } else if (customRate.type === 'fixed_per_ecg') {
+              baseAmount = (ecgCount * (customRate.fixedAmountPerEcg || 0)) + (secondOpinions * config.secondOpinionCost);
+            } else if (customRate.type === 'hybrid') {
+              const percentAmount = (hospitalCost * (customRate.basePercentage || 0)) / 100;
+              const fixedBonus = customRate.bonusPerEcg || 0;
+              baseAmount = (ecgCount * (percentAmount + fixedBonus)) + (secondOpinions * config.secondOpinionCost);
+            }
+          } else {
+            // Ne remplit pas le minimum → calcul standard
+            if (userRole === 'cardiologue') {
+              const perEcgAmount = (hospitalCost * config.cardiologuePercent) / 100;
+              baseAmount = (ecgCount * perEcgAmount) + (secondOpinions * config.secondOpinionCost);
+            } else {
+              const perEcgAmount = (hospitalCost * config.medecinPercent) / 100;
+              baseAmount = ecgCount * perEcgAmount;
+            }
+          }
         } else {
-          // Médecin référent : % du coût ECG × nb ECG
-          const perEcgAmount = (hospitalCost * config.medecinPercent) / 100;
-          baseAmount = ecgCount * perEcgAmount;
+          // Calcul standard (pas d'émolument spécial)
+          if (userRole === 'cardiologue') {
+            // Cardiologue : % du coût ECG × nb ECG + second avis
+            const perEcgAmount = (hospitalCost * config.cardiologuePercent) / 100;
+            baseAmount = (ecgCount * perEcgAmount) + (secondOpinions * config.secondOpinionCost);
+          } else {
+            // Médecin référent : % du coût ECG × nb ECG
+            const perEcgAmount = (hospitalCost * config.medecinPercent) / 100;
+            baseAmount = ecgCount * perEcgAmount;
+          }
         }
 
         // Calcul bonus
@@ -506,6 +587,48 @@ export const useEconomyStore = create<EconomyStore>()(
       getHospitalCost: (hospitalId) => {
         const customTarif = get().hospitalTarifs.find(h => h.hospitalId === hospitalId && h.enabled);
         return customTarif ? customTarif.customCost : get().tarifConfig.ecgCostPatient;
+      },
+
+      // Gestion des émoluments spéciaux
+      addSpecialEmolument: (emolument) => {
+        const newEmolument: SpecialEmolument = {
+          ...emolument,
+          id: `SPEC-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+        };
+        set(state => ({
+          specialEmoluments: [...state.specialEmoluments, newEmolument],
+        }));
+      },
+
+      updateSpecialEmolument: (id, updates) => {
+        set(state => ({
+          specialEmoluments: state.specialEmoluments.map(se =>
+            se.id === id
+              ? { ...se, ...updates, updatedAt: new Date().toISOString() }
+              : se
+          ),
+        }));
+      },
+
+      deleteSpecialEmolument: (id) => {
+        set(state => ({
+          specialEmoluments: state.specialEmoluments.filter(se => se.id !== id),
+        }));
+      },
+
+      getSpecialEmolumentForUser: (userId, hospitalId) => {
+        const specials = get().specialEmoluments.filter(se => 
+          se.userId === userId && 
+          se.isActive &&
+          // Vérifier date d'expiration
+          (!se.conditions?.validUntil || new Date(se.conditions.validUntil) > new Date()) &&
+          // Vérifier hôpital spécifique
+          (!se.conditions?.specificHospitals || !hospitalId || se.conditions.specificHospitals.includes(hospitalId))
+        );
+        
+        // Retourner le premier trouvé (priorité au plus récent)
+        return specials.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
       },
 
       resetToDefaults: () => {

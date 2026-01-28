@@ -140,15 +140,12 @@ export function Emoluments() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CreditCard className="h-6 w-6 text-emerald-600" />
-            Émoluments & Paiements
-          </h1>
-          <p className="text-gray-500 mt-1">Gestion mensuelle des émoluments et paiements</p>
+    <div className="space-y-3">
+      {/* En-tête compact */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-emerald-600" />
+          <h1 className="text-base font-semibold text-slate-800">Émoluments & Paiements</h1>
         </div>
         <div className="flex items-center gap-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
@@ -162,52 +159,6 @@ export function Emoluments() {
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      {/* Récapitulatif */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-indigo-600 text-sm font-medium">💼 CARDIOLOGUES</p>
-                <p className="text-2xl font-bold text-indigo-700 mt-1">{formatFCFA(summary.cardiologueTotal)}</p>
-                <p className="text-xs text-indigo-600 mt-1">{summary.cardiologueCount} personnes</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-indigo-300" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-600 text-sm font-medium">🩺 MÉDECINS</p>
-                <p className="text-2xl font-bold text-emerald-700 mt-1">{formatFCFA(summary.medecinTotal)}</p>
-                <p className="text-xs text-emerald-600 mt-1">{summary.medecinCount} personnes</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-emerald-300" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-600 text-sm font-medium">🏢 PLATEFORME</p>
-                <p className="text-2xl font-bold text-slate-700 mt-1">
-                  {formatFCFA(summary.totalRevenue - summary.totalEmoluments)}
-                </p>
-                <p className="text-xs text-slate-600 mt-1">
-                  {tarifConfig.platformPercent}% des revenus
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-slate-300" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Détails */}

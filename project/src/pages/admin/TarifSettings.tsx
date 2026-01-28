@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Settings, DollarSign, Building2, TrendingUp, Save, RotateCcw, Eye, History } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, DollarSign, Building2, TrendingUp, Save, RotateCcw, Eye, History, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,11 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export function TarifSettings() {
   const { tarifConfig, bonusConfig, hospitalTarifs, configHistory, updateTarifConfig, updateBonusConfig, setHospitalTarif, removeHospitalTarif, resetToDefaults } = useEconomyStore();
@@ -37,6 +42,20 @@ export function TarifSettings() {
   const [localConfig, setLocalConfig] = useState(tarifConfig);
   const [localBonus, setLocalBonus] = useState(bonusConfig);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // ⌨️ Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S : Sauvegarder
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && hasChanges) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasChanges, localConfig, localBonus]);
 
   // Mise à jour config locale
   const updateLocal = (field: keyof typeof localConfig, value: number) => {
@@ -104,15 +123,12 @@ export function TarifSettings() {
   const platformPerEcg = (localConfig.ecgCostPatient * localConfig.platformPercent) / 100;
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Settings className="h-6 w-6 text-indigo-600" />
-            Paramètres Tarifaires & Répartition
-          </h1>
-          <p className="text-gray-500 mt-1">Configuration des coûts ECG et émoluments</p>
+    <div className="space-y-3">
+      {/* En-tête compact */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <Settings className="h-4 w-4 text-indigo-600" />
+          <h1 className="text-base font-semibold text-slate-800">Paramètres Tarifaires</h1>
           {configHistory.length > 0 && (
             <p className="text-xs text-gray-400 mt-1">
               Dernière modification : {format(new Date(configHistory[0].timestamp), 'dd MMM yyyy à HH:mm', { locale: fr })} par {configHistory[0].userName}
@@ -187,12 +203,16 @@ export function TarifSettings() {
             <p className="text-sm text-gray-500">ℹ️ Tarif standard appliqué à tous les ECG</p>
           </div>
 
-          {/* Tarifs spéciaux établissements */}
-          <div className="pt-4 border-t">
-            <Label className="text-base font-semibold mb-3 block">
-              🏥 Tarifs spéciaux par établissement (optionnel)
-            </Label>
-            <div className="space-y-2">
+          {/* Tarifs spéciaux établissements - Collapsible */}
+          <Collapsible className="pt-3 border-t">
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-2 hover:bg-slate-50 rounded group">
+              <Label className="text-sm font-semibold cursor-pointer group-hover:text-indigo-600">
+                🏥 Tarifs spéciaux par établissement ({hospitalTarifs.filter(h => h.enabled).length} actifs)
+              </Label>
+              <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <div className="space-y-2">
               {hospitals.map((hospital) => {
                 const customTarif = hospitalTarifs.find(h => h.hospitalId === hospital.id);
                 const isEnabled = customTarif?.enabled || false;
@@ -233,11 +253,12 @@ export function TarifSettings() {
                   </div>
                 );
               })}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              💡 Coché = tarif spécifique, décoché = tarif standard
-            </p>
-          </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Coché = tarif spécifique, décoché = tarif standard
+              </p>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 
@@ -408,31 +429,35 @@ export function TarifSettings() {
         </CardContent>
       </Card>
 
-      {/* Système de Bonus */}
+      {/* Système de Bonus - Collapsible */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-amber-600" />
-            Système de Bonus
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <Label htmlFor="bonus-enabled" className="text-base font-semibold">
-              Activer les bonus de performance
-            </Label>
-            <Switch
-              id="bonus-enabled"
-              checked={localBonus.enabled}
-              onCheckedChange={(checked) => {
-                setLocalBonus({ ...localBonus, enabled: checked });
-                setHasChanges(true);
-              }}
-            />
-          </div>
-
-          {localBonus.enabled && (
-            <div className="space-y-4 pl-4 border-l-2 border-indigo-200">
+        <Collapsible defaultOpen={localBonus.enabled}>
+          <CardHeader className="pb-3">
+            <CollapsibleTrigger className="flex items-center justify-between w-full group">
+              <CardTitle className="text-base flex items-center gap-2 group-hover:text-amber-600">
+                <TrendingUp className="h-4 w-4 text-amber-600" />
+                Système de Bonus
+                <Badge variant="secondary" className="text-[10px]">
+                  {Object.values(localBonus).filter(v => v === true).length - 1} actifs
+                </Badge>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={localBonus.enabled}
+                  onCheckedChange={(checked) => {
+                    setLocalBonus({ ...localBonus, enabled: checked });
+                    setHasChanges(true);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+              </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              {localBonus.enabled && (
+                <div className="space-y-3 pl-3 border-l-2 border-indigo-200">
               {/* Bonus Cardiologues */}
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-indigo-700">BONUS CARDIOLOGUES</p>
@@ -613,10 +638,12 @@ export function TarifSettings() {
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Actions */}

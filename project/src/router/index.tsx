@@ -17,7 +17,7 @@ import { PatientsPage } from '@/pages/medecin/Patients';
 import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending } from '@/pages/secretaire';
 
 // Admin pages
-import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports } from '@/pages/admin';
+import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports, SpecialEmoluments } from '@/pages/admin';
 
 // Common pages
 import { ProfilePage } from '@/pages/common/Profile';
@@ -163,6 +163,7 @@ export function AppRouter({ user, onLogin, onLogout }: AppRouterProps) {
         { path: 'statistics', element: <Statistics /> },
         { path: 'tarifs', element: <TarifSettings /> },
         { path: 'emoluments', element: <Emoluments /> },
+        { path: 'special-emoluments', element: <SpecialEmoluments /> },
         { path: 'financial', element: <FinancialReports /> },
         { path: 'settings', element: <div className="p-6"><h1 className="text-2xl font-bold">Paramètres système</h1><p className="text-gray-500">Page en construction...</p></div> },
         { path: 'logs', element: <div className="p-6"><h1 className="text-2xl font-bold">Logs d'activité</h1><p className="text-gray-500">Page en construction...</p></div> },

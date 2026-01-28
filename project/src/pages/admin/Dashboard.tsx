@@ -35,27 +35,23 @@ export function AdminDashboard() {
   const recentLogs = logs.slice(0, 5);
 
   return (
-    <div className="space-y-5">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5 text-indigo-600" />
-            Administration
-          </h1>
-          <p className="text-sm text-slate-500">
-            Vue d'ensemble du système Xpress-ECG
-          </p>
+    <div className="space-y-3">
+      {/* En-tête compact */}
+      <div className="flex items-center justify-between h-11">
+        <div className="flex items-center gap-2">
+          <LayoutDashboard className="h-4 w-4 text-indigo-600" />
+          <h1 className="text-base font-semibold text-slate-800">Administration</h1>
+          <span className="text-[10px] text-slate-400">Vue système Xpress-ECG</span>
         </div>
-        <div className="text-xs text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded">
-          {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
+        <div className="text-[10px] text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded">
+          {format(new Date(), "EEE d MMM yyyy", { locale: fr })}
         </div>
       </div>
 
       {/* Alertes */}
       {pendingUsers.length > 0 && (
         <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-amber-50/30">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -84,88 +80,80 @@ export function AdminDashboard() {
         </Card>
       )}
 
-      {/* Statistiques principales */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Statistiques principales - COMPACT */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-indigo-50/80 to-indigo-50/20 border-indigo-200/60"
+          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
           onClick={() => navigate('/admin/users')}
         >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-indigo-600 text-xs font-medium">Utilisateurs</p>
-                <p className="text-2xl font-bold text-indigo-700">{stats.totalUsers}</p>
-                <p className="text-[10px] text-indigo-500 mt-0.5">
-                  {stats.activeUsers} actifs
-                </p>
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-indigo-100 rounded flex items-center justify-center flex-shrink-0">
+                <Users className="h-4 w-4 text-indigo-700" />
               </div>
-              <div className="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-indigo-700" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Utilisateurs</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.totalUsers}</p>
               </div>
+              <p className="text-[9px] text-slate-400">{stats.activeUsers} actifs</p>
             </div>
           </CardContent>
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-emerald-50/80 to-emerald-50/20 border-emerald-200/60"
+          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
           onClick={() => navigate('/admin/hospitals')}
         >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-600 text-xs font-medium">Établissements</p>
-                <p className="text-2xl font-bold text-emerald-700">{stats.totalHospitals}</p>
-                <p className="text-[10px] text-emerald-500 mt-0.5">
-                  {stats.activeHospitals} actifs
-                </p>
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0">
+                <Building2 className="h-4 w-4 text-emerald-700" />
               </div>
-              <div className="h-10 w-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-emerald-700" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Établissements</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.totalHospitals}</p>
               </div>
+              <p className="text-[9px] text-slate-400">{stats.activeHospitals} actifs</p>
             </div>
           </CardContent>
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-all duration-200 bg-gradient-to-br from-blue-50/80 to-blue-50/20 border-blue-200/60"
+          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
           onClick={() => navigate('/admin/statistics')}
         >
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-xs font-medium">ECG ce mois</p>
-                <p className="text-2xl font-bold text-blue-700">{stats.ecgThisMonth}</p>
-                <p className="text-[10px] text-blue-500 mt-0.5">
-                  {stats.ecgToday} aujourd'hui
-                </p>
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                <Activity className="h-4 w-4 text-blue-700" />
               </div>
-              <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Activity className="h-5 w-5 text-blue-700" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">ECG mois</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.ecgThisMonth}</p>
               </div>
+              <p className="text-[9px] text-slate-400">{stats.ecgToday} auj.</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-violet-50/80 to-violet-50/20 border-violet-200/60">
-          <CardContent className="p-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-violet-600 text-xs font-medium">Temps moyen</p>
-                <p className="text-2xl font-bold text-violet-700">{stats.avgResponseTime}</p>
-                <p className="text-[10px] text-violet-500 mt-0.5">
-                  réponse
-                </p>
+        <Card className="bg-slate-50 hover:bg-slate-100 border-slate-200">
+          <CardContent className="p-2">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 bg-violet-100 rounded flex items-center justify-center flex-shrink-0">
+                <Clock className="h-4 w-4 text-violet-700" />
               </div>
-              <div className="h-10 w-10 bg-violet-100 rounded-lg flex items-center justify-center">
-                <Clock className="h-5 w-5 text-violet-700" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-500 leading-tight">Temps moy.</p>
+                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.avgResponseTime}</p>
               </div>
+              <p className="text-[9px] text-slate-400">réponse</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Contenu principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Activité récente */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
