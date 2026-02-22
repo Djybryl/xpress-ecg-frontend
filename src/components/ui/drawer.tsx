@@ -1,123 +1,116 @@
 import * as React from 'react';
-import { X } from 'lucide-react';
+import { Drawer as DrawerPrimitive } from 'vaul';
+
 import { cn } from '@/lib/utils';
 
-interface DrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  description?: string;
-  children: React.ReactNode;
-  position?: 'left' | 'right';
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-  showCloseButton?: boolean;
-  closeOnOverlayClick?: boolean;
-  className?: string;
-}
+const Drawer = ({
+  shouldScaleBackground = true,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
+  <DrawerPrimitive.Root
+    shouldScaleBackground={shouldScaleBackground}
+    {...props}
+  />
+);
+Drawer.displayName = 'Drawer';
 
-export function Drawer({
-  isOpen,
-  onClose,
-  title,
-  description,
-  children,
-  position = 'right',
-  size = 'md',
-  showCloseButton = true,
-  closeOnOverlayClick = true,
+const DrawerTrigger = DrawerPrimitive.Trigger;
+
+const DrawerPortal = DrawerPrimitive.Portal;
+
+const DrawerClose = DrawerPrimitive.Close;
+
+const DrawerOverlay = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Overlay>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
+>(({ className, ...props }, ref) => (
+  <DrawerPrimitive.Overlay
+    ref={ref}
+    className={cn('fixed inset-0 z-50 bg-black/80', className)}
+    {...props}
+  />
+));
+DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
+
+const DrawerContent = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DrawerPortal>
+    <DrawerOverlay />
+    <DrawerPrimitive.Content
+      ref={ref}
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background',
+        className
+      )}
+      {...props}
+    >
+      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      {children}
+    </DrawerPrimitive.Content>
+  </DrawerPortal>
+));
+DrawerContent.displayName = 'DrawerContent';
+
+const DrawerHeader = ({
   className,
-}: DrawerProps) {
-  // Close on escape key
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn('grid gap-1.5 p-4 text-center sm:text-left', className)}
+    {...props}
+  />
+);
+DrawerHeader.displayName = 'DrawerHeader';
 
-  // Prevent body scroll when drawer is open
-  React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
+const DrawerFooter = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn('mt-auto flex flex-col gap-2 p-4', className)}
+    {...props}
+  />
+);
+DrawerFooter.displayName = 'DrawerFooter';
 
-  const sizeClasses = {
-    sm: 'w-80',
-    md: 'w-96',
-    lg: 'w-[480px]',
-    xl: 'w-[600px]',
-  };
+const DrawerTitle = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <DrawerPrimitive.Title
+    ref={ref}
+    className={cn(
+      'text-lg font-semibold leading-none tracking-tight',
+      className
+    )}
+    {...props}
+  />
+));
+DrawerTitle.displayName = DrawerPrimitive.Title.displayName;
 
-  const positionClasses = {
-    left: 'left-0',
-    right: 'right-0',
-  };
+const DrawerDescription = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <DrawerPrimitive.Description
+    ref={ref}
+    className={cn('text-sm text-muted-foreground', className)}
+    {...props}
+  />
+));
+DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
-  const animationClasses = {
-    left: isOpen ? 'translate-x-0' : '-translate-x-full',
-    right: isOpen ? 'translate-x-0' : 'translate-x-full',
-  };
-
-  return (
-    <>
-      {/* Overlay */}
-      <div
-        className={cn(
-          'fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300',
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        onClick={closeOnOverlayClick ? onClose : undefined}
-      />
-
-      {/* Drawer */}
-      <div
-        className={cn(
-          'fixed top-0 bottom-0 z-50 bg-white dark:bg-gray-900 shadow-2xl transition-transform duration-300 ease-in-out flex flex-col',
-          sizeClasses[size],
-          positionClasses[position],
-          animationClasses[position],
-          className
-        )}
-      >
-        {/* Header */}
-        {(title || showCloseButton) && (
-          <div className="flex items-start justify-between p-4 border-b dark:border-gray-700 flex-shrink-0">
-            <div>
-              {title && (
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {title}
-                </h2>
-              )}
-              {description && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {description}
-                </p>
-              )}
-            </div>
-            {showCloseButton && (
-              <button
-                onClick={onClose}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
-      </div>
-    </>
-  );
-}
-
+export {
+  Drawer,
+  DrawerPortal,
+  DrawerOverlay,
+  DrawerTrigger,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerFooter,
+  DrawerTitle,
+  DrawerDescription,
+};

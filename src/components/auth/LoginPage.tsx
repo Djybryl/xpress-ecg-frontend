@@ -8,10 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => void;
-  onForgotPassword?: () => void;
 }
 
-export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
+export function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -24,8 +23,10 @@ export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
     setError('');
     setIsLoading(true);
     
+    // Simulation de délai de connexion
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    // Pour la démo, accepter n'importe quel email/password
     if (email && password) {
       onLogin(email, password);
     } else {
@@ -57,6 +58,7 @@ export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
                 <Activity className="w-10 h-10 text-indigo-200 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
             </div>
+            {/* Effet de pulsation */}
             <div className="absolute inset-0 w-32 h-32 bg-white/10 rounded-full animate-ping opacity-20"></div>
           </div>
           
@@ -129,6 +131,7 @@ export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
             
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Message d'erreur */}
                 {error && (
                   <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 animate-fade-in">
                     {error}
@@ -162,7 +165,6 @@ export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
                     </Label>
                     <button
                       type="button"
-                      onClick={onForgotPassword}
                       className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                     >
                       Mot de passe oublié ?
@@ -293,4 +295,7 @@ export function LoginPage({ onLogin, onForgotPassword }: LoginPageProps) {
     </div>
   );
 }
+
+
+
 

@@ -8,39 +8,62 @@
 
 @layer base {
   :root {
-    /* Couleurs Pastel Indigo - Mode Clair */
-    --background: 226 100% 98%;
-    --foreground: 234 47% 14%;
+    /* Police principale */
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     
-    --card: 0 0% 100%;
+    /* Couleurs Pastel Indigo - Mode Clair */
+    --background: 226 100% 98%;          /* Fond très clair bleuté */
+    --foreground: 234 47% 14%;           /* Texte sombre */
+    
+    --card: 0 0% 100%;                   /* Cartes blanches */
     --card-foreground: 234 47% 14%;
     
     --popover: 0 0% 100%;
     --popover-foreground: 234 47% 14%;
     
-    --primary: 239 84% 67%;
+    --primary: 239 84% 67%;              /* Indigo principal #818CF8 */
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 226 100% 95%;
+    --secondary: 226 100% 95%;           /* Indigo très clair */
     --secondary-foreground: 239 84% 40%;
     
     --muted: 226 50% 94%;
     --muted-foreground: 234 20% 46%;
     
-    --accent: 239 84% 92%;
+    --accent: 239 84% 92%;               /* Accent indigo pastel */
     --accent-foreground: 239 84% 40%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
     --border: 226 30% 88%;
     --input: 226 30% 92%;
     --ring: 239 84% 67%;
     
-    --radius: 0.75rem;
+    /* Couleurs spécifiques ECG */
+    --ecg-urgent: 0 84% 60%;
+    --ecg-pending: 38 92% 50%;
+    --ecg-completed: 142 76% 36%;
+    --ecg-analyzing: 239 84% 67%;
+    
+    /* Graphiques */
+    --chart-1: 239 84% 67%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 280 65% 60%;
+    
+    --radius: 0.5rem;
   }
 
   .dark {
+    /* Mode sombre - Indigo foncé */
     --background: 234 47% 8%;
     --foreground: 226 100% 97%;
     
@@ -68,6 +91,12 @@
     --border: 234 30% 20%;
     --input: 234 30% 18%;
     --ring: 239 84% 72%;
+    
+    --chart-1: 239 84% 72%;
+    --chart-2: 142 70% 50%;
+    --chart-3: 38 85% 55%;
+    --chart-4: 0 75% 55%;
+    --chart-5: 280 60% 65%;
   }
 }
 
@@ -76,28 +105,54 @@
     @apply border-border;
   }
   
+  html {
+    font-family: var(--font-sans);
+  }
+  
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Amélioration du focus pour accessibilité */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
 @layer components {
-  /* Styles de statut ECG */
+  /* Animations personnalisées */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+  
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+  
+  .animate-ecg-line {
+    animation: ecgLine 2s ease-in-out infinite;
+  }
+  
+  /* Styles de status ECG */
   .status-urgent {
-    @apply bg-red-100 text-red-800;
+    @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400;
   }
   
   .status-pending {
-    @apply bg-amber-100 text-amber-800;
+    @apply bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400;
   }
   
   .status-analyzing {
-    @apply bg-indigo-100 text-indigo-800;
+    @apply bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400;
   }
   
   .status-completed {
-    @apply bg-green-100 text-green-800;
+    @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
   }
   
   /* Fond avec motif ECG subtil */
@@ -110,6 +165,31 @@
 }
 
 @layer utilities {
+  /* Scrollbar personnalisée */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+  }
+  
+  /* Glassmorphism */
   .glass {
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(12px);
@@ -117,150 +197,60 @@
   }
   
   .dark .glass {
-    background: rgba(30, 30, 50, 0.8);
+    background: rgba(30, 27, 75, 0.8);
   }
 }
 
-/* ============================================
-   ANIMATIONS
-   ============================================ */
-
-/* Pulse soft pour le logo */
-@keyframes pulse-soft {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.9; }
+/* Keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.animate-pulse-soft {
-  animation: pulse-soft 2s ease-in-out infinite;
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* ECG line animation */
-@keyframes ecg-line {
-  0% { stroke-dashoffset: 400; }
-  100% { stroke-dashoffset: 0; }
+@keyframes pulseSoft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
-.animate-ecg-line {
-  animation: ecg-line 3s linear infinite;
+@keyframes ecgLine {
+  0% {
+    stroke-dashoffset: 200;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -200;
+  }
 }
 
-/* Fade in animation */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
-}
-
-/* Slide in from top */
-@keyframes slide-in-top {
-  from { transform: translateY(-10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.animate-slide-in-top {
-  animation: slide-in-top 0.2s ease-out forwards;
-}
-
-/* Slide in from bottom */
-@keyframes slide-in-bottom {
-  from { transform: translateY(10px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.animate-slide-in-bottom {
-  animation: slide-in-bottom 0.2s ease-out forwards;
-}
-
-/* ============================================
-   SCROLLBAR STYLING
-   ============================================ */
-
-/* Custom scrollbar for WebKit browsers */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-}
-
-/* Dark mode scrollbar */
-.dark ::-webkit-scrollbar-track {
-  background: hsl(234 30% 16%);
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: hsl(226 30% 40%);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(226 30% 50%);
-}
-
-/* ============================================
-   PRINT STYLES
-   ============================================ */
-
+/* Print styles */
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
-  }
-  
   .no-print {
     display: none !important;
   }
   
-  .print-only {
-    display: block !important;
+  body {
+    background: white !important;
+    color: black !important;
   }
 }
-
-/* ============================================
-   FOCUS VISIBLE FOR ACCESSIBILITY
-   ============================================ */
-
-*:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
-
-/* Remove focus ring for mouse users */
-*:focus:not(:focus-visible) {
-  outline: none;
-}
-
-/* ============================================
-   SKIP LINK FOR ACCESSIBILITY
-   ============================================ */
-
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 0;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  padding: 8px 16px;
-  z-index: 100;
-  transition: top 0.3s;
-}
-
-.skip-link:focus {
-  top: 0;
-}
-
