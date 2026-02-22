@@ -4,3 +4,4 @@ export * from './Requests';
 export * from './Reports';
 export * from './ReportView';
 export * from './Patients';
+export { HistoryPage } from './History';

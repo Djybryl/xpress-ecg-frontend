@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -13,7 +13,8 @@ import {
   Building2,
   Lightbulb,
   Send,
-  FileText
+  FileText,
+  Search
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,8 @@ export function SecondOpinionRequests() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 6;
   
   // Dialogs
   const [chatDialogOpen, setChatDialogOpen] = useState(false);
@@ -132,6 +135,12 @@ export function SecondOpinionRequests() {
     const matchUrgency = urgencyFilter === 'all' || req.urgency === urgencyFilter;
     return matchSearch && matchStatus && matchUrgency;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
+  const paginatedRequests = filteredRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [searchQuery, statusFilter, urgencyFilter]);
 
   const getStatusBadge = (status: SecondOpinionRequest['status']) => {
     const config = {
@@ -224,60 +233,63 @@ export function SecondOpinionRequests() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      {/* Header compact avec filtres à droite */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attente Second Avis</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {filteredRequests.length} demande{filteredRequests.length > 1 ? 's' : ''} • 
-            {requests.filter(r => r.status === 'pending').length} en attente de réponse
-          </p>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Users className="h-5 w-5 text-indigo-600" />
+            Attente Second Avis
+            <Badge variant="secondary" className="text-xs font-normal">
+              {filteredRequests.length}
+            </Badge>
+            {requests.filter(r => r.status === 'pending').length > 0 && (
+              <Badge className="bg-amber-100 text-amber-700 text-[10px] font-normal">
+                {requests.filter(r => r.status === 'pending').length} en attente
+              </Badge>
+            )}
+          </h1>
+        </div>
+        {/* Filtres inline — à droite du titre */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              placeholder="Patient, ECG, médecin…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs w-48"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectValue placeholder="Statut" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="pending">En attente</SelectItem>
+              <SelectItem value="in-progress">En cours</SelectItem>
+              <SelectItem value="completed">Complétés</SelectItem>
+              <SelectItem value="declined">Déclinés</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+            <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectValue placeholder="Urgence" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes</SelectItem>
+              <SelectItem value="critical">Critiques</SelectItem>
+              <SelectItem value="urgent">Urgents</SelectItem>
+              <SelectItem value="normal">Normaux</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Filtres */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-3 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
-              <Input
-                placeholder="Rechercher patient, ECG, médecin..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 text-sm"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px] h-9 text-sm">
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="pending">En attente</SelectItem>
-                <SelectItem value="in-progress">En cours</SelectItem>
-                <SelectItem value="completed">Complétés</SelectItem>
-                <SelectItem value="declined">Déclinés</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-              <SelectTrigger className="w-[180px] h-9 text-sm">
-                <SelectValue placeholder="Urgence" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes urgences</SelectItem>
-                <SelectItem value="critical">Critiques</SelectItem>
-                <SelectItem value="urgent">Urgents</SelectItem>
-                <SelectItem value="normal">Normaux</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Liste des demandes */}
-      <div className="space-y-3">
-        {filteredRequests.map((request) => (
+      {/* Grille 2 colonnes */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {paginatedRequests.map((request) => (
           <Card key={request.id} className={cn(
             "overflow-hidden transition-shadow hover:shadow-md",
             request.urgency === 'critical' && "border-l-4 border-l-red-600",
@@ -413,14 +425,37 @@ export function SecondOpinionRequests() {
         ))}
 
         {filteredRequests.length === 0 && (
-          <Card>
+          <Card className="xl:col-span-2">
             <CardContent className="p-12 text-center">
               <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">Aucune demande de second avis</p>
+              <p className="text-xs text-gray-400 mt-1">Modifiez les filtres pour voir plus de résultats</p>
             </CardContent>
           </Card>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1 text-xs text-gray-500">
+          <span>{filteredRequests.length} demande{filteredRequests.length > 1 ? 's' : ''} • page {page}/{totalPages}</span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              return start + i;
+            }).map(p => (
+              <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm"
+                className={cn('h-6 w-6 p-0 text-xs', p === page && 'bg-indigo-600 text-white')}
+                onClick={() => setPage(p)}>{p}
+              </Button>
+            ))}
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</Button>
+            <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+          </div>
+        </div>
+      )}
 
       {/* DIALOG ACCEPTER - CONFIRMATION */}
       <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>

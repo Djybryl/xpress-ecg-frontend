@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Inbox, 
@@ -43,6 +43,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useCardiologueStore } from '@/stores/useCardiologueStore';
+import { useAuthContext } from '@/providers/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, differenceInMinutes } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -54,12 +55,13 @@ type SortType = 'recent' | 'urgent-first' | 'oldest' | 'hospital' | 'doctor' | '
 export function CardiologueDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getPending, getUrgent, getCompleted, getCounts, startAnalysis } = useCardiologueStore();
+  const { user } = useAuthContext();
+  const { getAvailable, getUrgent, getMyCompleted, getCounts, startAnalysis } = useCardiologueStore();
 
-  const pendingECGs = getPending();
+  const pendingECGs = getAvailable(user?.email);
   const urgentECGs = getUrgent();
-  const completedECGs = getCompleted();
-  const counts = getCounts();
+  const completedECGs = user?.email ? getMyCompleted(user.email) : [];
+  const counts = getCounts(user?.email);
 
   const [selectedECGs, setSelectedECGs] = useState<string[]>([]);
   const [favoriteECGs, setFavoriteECGs] = useState<string[]>([]);
@@ -185,7 +187,8 @@ export function CardiologueDashboard() {
   }, [focusedIndex]);
 
   const handleStartAnalysis = (ecgId: string) => {
-    startAnalysis(ecgId);
+    if (!user?.email || !user?.name) return;
+    startAnalysis(ecgId, user.email, user.name);
     navigate(`/cardiologue/analyze/${ecgId}`);
   };
 
@@ -240,180 +243,90 @@ export function CardiologueDashboard() {
 
   return (
     <div className="space-y-3">
-      {/* Bouton de contrôle Stats */}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-6 px-2 text-xs"
-          onClick={() => setShowStats(!showStats)}
-        >
-          {showStats ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
-          Stats
+      {/* Stats compactes + bouton masquer à droite */}
+      <div className="flex items-center gap-2">
+        {showStats && (
+          <>
+            <Card className="border-l-4 border-red-500 cursor-pointer hover:shadow-sm transition-shadow flex-1" onClick={() => setActiveFilter('urgent')}>
+              <CardContent className="p-1.5 flex items-center justify-between">
+                <div><p className="text-[9px] text-gray-500">Urgents</p><p className="text-base font-bold text-gray-900">{urgentECGs.length}</p></div>
+                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-yellow-500 cursor-pointer hover:shadow-sm transition-shadow flex-1" onClick={() => setActiveFilter('all')}>
+              <CardContent className="p-1.5 flex items-center justify-between">
+                <div><p className="text-[9px] text-gray-500">En attente</p><p className="text-base font-bold text-gray-900">{counts.available}</p></div>
+                <Clock className="h-3.5 w-3.5 text-yellow-500" />
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-green-500 cursor-pointer hover:shadow-sm transition-shadow flex-1" onClick={() => setActiveFilter('today')}>
+              <CardContent className="p-1.5 flex items-center justify-between">
+                <div><p className="text-[9px] text-gray-500">Aujourd'hui</p><p className="text-base font-bold text-gray-900">{todayCompleted}</p></div>
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-purple-500 flex-1">
+              <CardContent className="p-1.5 flex items-center justify-between">
+                <div><p className="text-[9px] text-gray-500">Tps moyen</p><p className="text-base font-bold text-gray-900">{avgAnalysisTime}<span className="text-[9px] font-normal text-gray-400"> min</span></p></div>
+                <BarChart3 className="h-3.5 w-3.5 text-purple-500" />
+              </CardContent>
+            </Card>
+          </>
+        )}
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-gray-400 hover:text-gray-600"
+          onClick={() => setShowStats(!showStats)} title={showStats ? 'Masquer stats' : 'Afficher stats'}>
+          {showStats ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>
       </div>
 
-      {/* Statistiques rapides - ULTRA-COMPACTES (hauteur réduite de moitié) */}
-      {showStats && (
-        <div className="grid grid-cols-4 gap-2">
-        <Card className="border-l-4 border-red-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('urgent')}>
-          <CardContent className="p-1.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[9px] text-gray-500">Urgents</p>
-                <p className="text-lg font-bold text-gray-900">{urgentECGs.length}</p>
-              </div>
-              <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="h-3 w-3 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-yellow-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('all')}>
-          <CardContent className="p-1.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[9px] text-gray-500">En attente</p>
-                <p className="text-lg font-bold text-gray-900">{counts.pending}</p>
-              </div>
-              <div className="h-6 w-6 rounded-full bg-yellow-100 flex items-center justify-center">
-                <Clock className="h-3 w-3 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-green-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveFilter('today')}>
-          <CardContent className="p-1.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[9px] text-gray-500">Aujourd'hui</p>
-                <p className="text-lg font-bold text-gray-900">{todayCompleted}</p>
-              </div>
-              <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-purple-500 hover:shadow-md transition-shadow">
-          <CardContent className="p-1.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[9px] text-gray-500">Temps moyen</p>
-                <p className="text-lg font-bold text-gray-900">{avgAnalysisTime}</p>
-                <p className="text-[8px] text-gray-400">min/ECG</p>
-              </div>
-              <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center">
-                <BarChart3 className="h-3 w-3 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      )}
-
-      {/* File d'attente */}
+      {/* Liste ECG */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Inbox className="h-5 w-5 text-indigo-600" />
-              File d'attente
-              <Badge variant="outline" className="ml-2">{filteredECGs.length} demandes</Badge>
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Actualiser
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
         <CardContent className="p-0">
-          {/* Filtres rapides + Recherche + Tri */}
-          <div className="px-4 py-3 border-b bg-gray-50 space-y-2">
-            {/* Ligne 1: Recherche + Tri */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher patient ou ID..."
-                  className="pl-9 h-8 text-sm"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              
-              <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortType)}>
-                <SelectTrigger className="w-[200px] h-8 text-xs">
-                  <ArrowUpDown className="h-3 w-3 mr-2" />
-                  <SelectValue />
+          {/* Barre unique : recherche + pills + tri + actualiser */}
+          <div className="px-3 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input
+                placeholder="Patient ou ID…"
+                className="pl-8 h-7 text-xs w-44"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {/* Pills filtre */}
+            {([
+              { key: 'all',       label: 'Tout',       count: pendingECGs.length,       active: 'bg-indigo-600 text-white border-indigo-600' },
+              { key: 'urgent',    label: '⚡ Urgents', count: urgentECGs.length,         active: 'bg-red-600 text-white border-red-600' },
+              { key: 'today',     label: '📅 Aujourd\'hui', count: pendingECGs.filter(e => format(parseISO(e.ecgDate), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')).length, active: 'bg-green-600 text-white border-green-600' },
+              { key: 'favorites', label: '⭐ Favoris', count: favoriteECGs.length,       active: 'bg-yellow-600 text-white border-yellow-600' },
+            ] as { key: FilterType; label: string; count: number; active: string }[]).map(f => (
+              <button key={f.key}
+                onClick={() => setActiveFilter(f.key)}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium transition-colors',
+                  activeFilter === f.key ? f.active : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                )}
+              >
+                {f.label}
+                <span className={cn('text-[10px] rounded-full px-1', activeFilter === f.key ? 'bg-white/20' : 'bg-gray-200 text-gray-500')}>{f.count}</span>
+              </button>
+            ))}
+            <div className="ml-auto flex items-center gap-1.5">
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortType)}>
+                <SelectTrigger className="h-7 w-36 text-xs">
+                  <ArrowUpDown className="h-3 w-3 mr-1" /><SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recent">⏰ Plus récents</SelectItem>
-                  <SelectItem value="urgent-first">🚨 Urgences d'abord</SelectItem>
-                  <SelectItem value="oldest">⏱️ Plus anciens</SelectItem>
-                  <SelectItem value="hospital">🏥 Par établissement</SelectItem>
-                  <SelectItem value="doctor">👤 Par médecin</SelectItem>
-                  <SelectItem value="patient-name">🔤 Par nom (A-Z)</SelectItem>
+                  <SelectItem value="recent">Plus récents</SelectItem>
+                  <SelectItem value="urgent-first">Urgences d'abord</SelectItem>
+                  <SelectItem value="oldest">Plus anciens</SelectItem>
+                  <SelectItem value="hospital">Par établissement</SelectItem>
+                  <SelectItem value="doctor">Par médecin</SelectItem>
+                  <SelectItem value="patient-name">Par nom (A-Z)</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Ligne 2: Pills de filtre */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant={activeFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  "gap-2 h-7 text-xs",
-                  activeFilter === 'all' && "bg-indigo-600 text-white"
-                )}
-                onClick={() => setActiveFilter('all')}
-              >
-                Tout
-                <Badge variant="secondary" className="ml-1 text-[10px]">{pendingECGs.length}</Badge>
-              </Button>
-              <Button
-                variant={activeFilter === 'urgent' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  "gap-2 h-7 text-xs",
-                  activeFilter === 'urgent' && "bg-red-600 text-white"
-                )}
-                onClick={() => setActiveFilter('urgent')}
-              >
-                ⚡ Urgents
-                <Badge variant="secondary" className="ml-1 text-[10px]">{urgentECGs.length}</Badge>
-              </Button>
-              <Button
-                variant={activeFilter === 'today' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  "gap-2 h-7 text-xs",
-                  activeFilter === 'today' && "bg-green-600 text-white"
-                )}
-                onClick={() => setActiveFilter('today')}
-              >
-                📅 Aujourd'hui
-                <Badge variant="secondary" className="ml-1 text-[10px]">
-                  {pendingECGs.filter(e => format(parseISO(e.ecgDate), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')).length}
-                </Badge>
-              </Button>
-              <Button
-                variant={activeFilter === 'favorites' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  "gap-2 h-7 text-xs",
-                  activeFilter === 'favorites' && "bg-yellow-600 text-white"
-                )}
-                onClick={() => setActiveFilter('favorites')}
-              >
-                ⭐ Favoris
-                <Badge variant="secondary" className="ml-1 text-[10px]">{favoriteECGs.length}</Badge>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" title="Actualiser">
+                <RefreshCw className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>

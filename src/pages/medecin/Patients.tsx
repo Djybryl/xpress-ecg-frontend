@@ -16,6 +16,7 @@ import {
   Download,
   FileSpreadsheet
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Card,
   CardContent,
@@ -48,7 +49,7 @@ import {
 import { usePatientStore, type Patient } from '@/stores/usePatientStore';
 import { useToast } from "@/hooks/use-toast";
 import { useReportStore } from '@/stores/useReportStore';
-import { cn } from '@/lib/utils';
+import { PatientECGHistory } from '@/components/patients/PatientECGHistory';
 
 export function PatientsPage() {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ export function PatientsPage() {
   const { getReportsByPatient } = useReportStore();
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [ecgFilter, setEcgFilter] = useState<'all' | 'with_ecg' | 'recent'>('all');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -69,8 +71,17 @@ export function PatientsPage() {
     // TODO: Implémenter l'export réel
   };
 
+  // Stats
+  const withECG = patients.filter(p => p.ecgCount > 0).length;
+  const recentECG = patients.filter(p => p.lastECG && new Date(p.lastECG) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
+
   // Filtrage des patients
-  const filteredPatients = searchTerm ? searchPatients(searchTerm) : patients;
+  const basePatients = searchTerm ? searchPatients(searchTerm) : patients;
+  const filteredPatients = basePatients.filter(p => {
+    if (ecgFilter === 'with_ecg') return p.ecgCount > 0;
+    if (ecgFilter === 'recent') return p.lastECG && new Date(p.lastECG) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return true;
+  });
 
   // Pagination
   const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
@@ -101,56 +112,84 @@ export function PatientsPage() {
   const patientReports = selectedPatient ? getReportsByPatient(selectedPatient.id) : [];
 
   return (
-    <div className="p-6 space-y-6">
-      {/* En-tête */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mes patients</h1>
-          <p className="text-gray-500">Gérez vos patients et consultez leur historique ECG</p>
+    <div className="space-y-3">
+      {/* En-tête compact avec pills stats */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <User className="h-5 w-5 text-indigo-600" />
+            Mes patients
+          </h1>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <span className="font-bold">{patients.length}</span>
+            <span className="opacity-75">total</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
+            <Activity className="h-3 w-3" />
+            <span className="font-bold">{withECG}</span>
+            <span className="opacity-75">avec ECG</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700">
+            <Clock className="h-3 w-3" />
+            <span className="font-bold">{recentECG}</span>
+            <span className="opacity-75">30 jours</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Exporter
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                <Download className="h-3.5 w-3.5 mr-1.5" />Exporter
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                <FileText className="h-4 w-4 mr-2" />
-                Exporter en PDF
+                <FileText className="h-4 w-4 mr-2" />Exporter en PDF
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('excel')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Exporter en Excel
+                <FileSpreadsheet className="h-4 w-4 mr-2" />Exporter en Excel
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button 
-            className="bg-indigo-600 hover:bg-indigo-700"
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs"
             onClick={() => navigate('/medecin/new-ecg')}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Nouvel ECG
+            <Plus className="h-3.5 w-3.5 mr-1" />Nouvel ECG
           </Button>
         </div>
       </div>
 
       {/* Tableau des patients */}
       <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="text-lg">Liste des patients</CardTitle>
+        <CardHeader className="border-b p-0">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <Input
-                placeholder="Rechercher un patient..."
-                className="pl-9 w-[300px]"
+                placeholder="Rechercher un patient…"
+                className="pl-8 h-8 text-xs w-52"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               />
             </div>
+            {[
+              { value: 'all',      label: 'Tous',             count: patients.length },
+              { value: 'with_ecg', label: 'Avec ECG',         count: withECG },
+              { value: 'recent',   label: 'ECG < 30 jours',   count: recentECG },
+            ].map(f => (
+              <button key={f.value}
+                onClick={() => { setEcgFilter(f.value as typeof ecgFilter); setCurrentPage(1); }}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium transition-colors',
+                  ecgFilter === f.value ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                )}
+              >
+                {f.label}
+                <span className={cn('text-[10px] rounded-full px-1', ecgFilter === f.value ? 'bg-white/20' : 'bg-gray-200 text-gray-500')}>{f.count}</span>
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-gray-400">{filteredPatients.length} patient{filteredPatients.length > 1 ? 's' : ''}</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -373,42 +412,16 @@ export function PatientsPage() {
                   </Button>
                 </div>
 
-                {patientReports.length > 0 ? (
-                  <div className="border rounded-lg divide-y max-h-[300px] overflow-auto">
-                    {patientReports.map((report) => (
-                      <div
-                        key={report.id}
-                        className="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                        onClick={() => {
-                          setSelectedPatient(null);
-                          navigate(`/medecin/reports/${report.id}`);
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Activity className="h-4 w-4 text-indigo-600" />
-                          <div>
-                            <p className="font-medium">{report.ecgId}</p>
-                            <p className="text-sm text-gray-500">
-                              {formatDate(report.dateEcg)} • {report.cardiologist}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {report.isUrgent && (
-                            <Badge variant="destructive" className="text-xs">Urgent</Badge>
-                          )}
-                          <ChevronRight className="h-4 w-4 text-gray-400" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500 border rounded-lg">
-                    <Activity className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p>Aucun rapport disponible</p>
-                    <p className="text-sm">Les ECG en cours d'analyse apparaîtront ici</p>
-                  </div>
-                )}
+                <div className="max-h-[360px] overflow-y-auto">
+                  <PatientECGHistory
+                    patientName={selectedPatient.name}
+                    reports={patientReports}
+                    onOpenReport={(reportId) => {
+                      setSelectedPatient(null);
+                      navigate(`/medecin/reports/${reportId}`);
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}

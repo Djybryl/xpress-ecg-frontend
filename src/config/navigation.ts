@@ -1,3 +1,4 @@
+import type { UserRole } from '@/config/roles';
 import {
   Home,
   Inbox,
@@ -19,6 +20,7 @@ import {
   CreditCard,
   TrendingUp,
   Star,
+  GitBranch,
   type LucideIcon
 } from 'lucide-react';
 
@@ -71,17 +73,12 @@ export const cardiologueNavigation: NavigationConfig = {
       icon: Clock 
     },
     { 
-      label: 'Terminés', 
+      label: 'Rapports ECG', 
       path: '/cardiologue/completed', 
       icon: CheckCircle 
     },
   ],
   secondary: [
-    { 
-      label: 'Rapports', 
-      path: '/cardiologue/reports', 
-      icon: FileText 
-    },
     { 
       label: 'Statistiques', 
       path: '/cardiologue/statistics', 
@@ -159,6 +156,11 @@ export const secretaireNavigation: NavigationConfig = {
       badge: 6,
       badgeVariant: 'success'
     },
+    {
+      label: 'Règles de routage',
+      path: '/secretaire/routing',
+      icon: GitBranch,
+    },
   ],
   secondary: [
     { 
@@ -235,7 +237,7 @@ export const adminNavigation: NavigationConfig = {
 };
 
 // Fonction pour obtenir la navigation selon le rôle
-export function getNavigationForRole(role: string): NavigationConfig {
+export function getNavigationForRole(role: UserRole): NavigationConfig {
   switch (role) {
     case 'cardiologue':
       return cardiologueNavigation;
@@ -251,7 +253,7 @@ export function getNavigationForRole(role: string): NavigationConfig {
 }
 
 // Fonction pour obtenir le chemin de base selon le rôle
-export function getBasePathForRole(role: string): string {
+export function getBasePathForRole(role: UserRole): string {
   switch (role) {
     case 'cardiologue':
       return '/cardiologue';
@@ -267,7 +269,7 @@ export function getBasePathForRole(role: string): string {
 }
 
 // Titres des rôles pour l'affichage
-export const roleLabels: Record<string, string> = {
+export const roleLabels: Record<UserRole, string> = {
   cardiologue: 'Cardiologue',
   medecin: 'Médecin Référent',
   secretaire: 'Secrétaire Médicale',
@@ -275,7 +277,7 @@ export const roleLabels: Record<string, string> = {
 };
 
 // Couleurs des rôles pour les badges
-export const roleColors: Record<string, string> = {
+export const roleColors: Record<UserRole, string> = {
   cardiologue: 'bg-indigo-100 text-indigo-700',
   medecin: 'bg-emerald-100 text-emerald-700',
   secretaire: 'bg-amber-100 text-amber-700',

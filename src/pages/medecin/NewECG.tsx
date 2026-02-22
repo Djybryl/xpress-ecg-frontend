@@ -49,6 +49,29 @@ import { useToast } from "@/hooks/use-toast";
 import { usePatientStore, type Patient } from "@/stores/usePatientStore";
 import { cn } from "@/lib/utils";
 
+// Formats ECG acceptés (specs métier)
+const ACCEPTED_FORMATS = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'application/pdf': ['.pdf'],
+  'application/dicom': ['.dcm'],
+  'application/octet-stream': ['.dcm', '.scp', '.wfdb'],
+};
+const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf', '.dcm', '.scp', '.wfdb'];
+const MAX_FILE_SIZE_MB = 20;
+const ACCEPTED_MIME_ACCEPT = 'image/jpeg,image/png,application/pdf,.dcm,.scp,.wfdb';
+
+function validateFile(file: File): string | null {
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+  if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+    return `Format non supporté : ${ext}. Formats acceptés : ${ACCEPTED_EXTENSIONS.join(', ')}`;
+  }
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    return `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum : ${MAX_FILE_SIZE_MB} MB`;
+  }
+  return null;
+}
+
 // Templates de contexte clinique
 const clinicalTemplates = [
   { id: 'chest_pain', label: 'Douleur thoracique', text: 'Patient présentant une douleur thoracique. ' },
@@ -92,6 +115,8 @@ export function NewECGPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewPatientDialog, setShowNewPatientDialog] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<FormData>({
     patient: null,
@@ -126,13 +151,25 @@ export function NewECGPage() {
     }
   };
 
-  // Gestion des fichiers
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    
-    // Créer les previews
-    const newPreviews: string[] = [];
+  // Validation et ajout de fichiers
+  const processFiles = useCallback((files: File[]) => {
+    const errors: string[] = [];
+    const validFiles: File[] = [];
+
     files.forEach(file => {
+      const error = validateFile(file);
+      if (error) {
+        errors.push(`${file.name} : ${error}`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    setFileErrors(errors);
+
+    if (errors.length > 0 && validFiles.length === 0) return;
+
+    validFiles.forEach(file => {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -143,15 +180,36 @@ export function NewECGPage() {
         };
         reader.readAsDataURL(file);
       } else {
-        newPreviews.push('');
+        setFormData(prev => ({
+          ...prev,
+          filesPreviews: [...prev.filesPreviews, '']
+        }));
       }
     });
 
     setFormData(prev => ({
       ...prev,
-      files: [...prev.files, ...files],
+      files: [...prev.files, ...validFiles],
     }));
   }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    processFiles(Array.from(e.target.files || []));
+    e.target.value = '';
+  }, [processFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => setIsDragging(false), []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    processFiles(Array.from(e.dataTransfer.files));
+  }, [processFiles]);
 
   const removeFile = (index: number) => {
     setFormData(prev => ({
@@ -462,26 +520,54 @@ export function NewECGPage() {
               />
             </div>
 
-            {/* Zone d'upload */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-400 transition-colors">
+            {/* Zone d'upload drag-and-drop */}
+            <div
+              className={cn(
+                'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
+                isDragging
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : 'border-gray-300 hover:border-indigo-400'
+              )}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <input
                 type="file"
                 id="ecgFile"
                 className="hidden"
-                accept="image/*,.pdf,.dcm"
+                accept={ACCEPTED_MIME_ACCEPT}
                 multiple
                 onChange={handleFileChange}
               />
               <label htmlFor="ecgFile" className="cursor-pointer">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <Upload className={cn(
+                  'h-12 w-12 mx-auto mb-4 transition-colors',
+                  isDragging ? 'text-indigo-500' : 'text-gray-400'
+                )} />
                 <p className="text-lg font-medium text-gray-700">
-                  Cliquez pour télécharger ou glissez-déposez
+                  {isDragging ? 'Déposez les fichiers ici' : 'Cliquez ou glissez-déposez'}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  PNG, JPG, PDF ou DICOM (max. 10MB)
+                  JPG, PNG, PDF, DICOM (.dcm), SCP-ECG (.scp), WFDB (.wfdb)
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Taille maximale : {MAX_FILE_SIZE_MB} MB par fichier
                 </p>
               </label>
             </div>
+
+            {/* Erreurs de validation */}
+            {fileErrors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+                {fileErrors.map((err, i) => (
+                  <p key={i} className="text-sm text-red-600 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    {err}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {/* Prévisualisation des fichiers */}
             {formData.files.length > 0 && (

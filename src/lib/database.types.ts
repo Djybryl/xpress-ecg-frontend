@@ -228,13 +228,57 @@ export interface Database {
           }
         ]
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string
+          message: string | null
+          ecg_id: string | null
+          read: boolean
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title: string
+          message?: string | null
+          ecg_id?: string | null
+          read?: boolean
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          message?: string | null
+          ecg_id?: string | null
+          read?: boolean
+          read_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       users: {
         Row: {
           created_at: string
           email: string
           full_name: string
           id: string
-          role: "doctor" | "expert" | "secretary"
+          role: "cardiologue" | "medecin" | "secretaire" | "admin"
           updated_at: string
         }
         Insert: {
@@ -242,7 +286,7 @@ export interface Database {
           email: string
           full_name: string
           id: string
-          role: "doctor" | "expert" | "secretary"
+          role: "cardiologue" | "medecin" | "secretaire" | "admin"
           updated_at?: string
         }
         Update: {
@@ -250,7 +294,7 @@ export interface Database {
           email?: string
           full_name?: string
           id?: string
-          role?: "doctor" | "expert" | "secretary"
+          role?: "cardiologue" | "medecin" | "secretaire" | "admin"
           updated_at?: string
         }
         Relationships: [

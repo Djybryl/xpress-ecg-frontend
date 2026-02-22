@@ -1,9 +1,13 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { LoginPage } from '@/components/auth/LoginPage';
+import { useAuthContext } from '@/providers/AuthProvider';
+import { UnderConstruction } from '@/components/shared/UnderConstruction';
+import { NotFoundPage } from '@/components/shared/NotFoundPage';
+import type { UserRole } from '@/config/roles';
 
 // Cardiologue pages
-import { CardiologueDashboard, PendingECG, AnalyzeECG, CompletedECG, SecondOpinionRequests } from '@/pages/cardiologue';
+import { CardiologueDashboard, PendingECG, AnalyzeECG, CompletedECG, SecondOpinionRequests, CardiologueStatistics } from '@/pages/cardiologue';
 
 // Médecin pages
 import { MedecinDashboard } from '@/pages/medecin/Dashboard';
@@ -12,213 +16,173 @@ import { RequestsPage } from '@/pages/medecin/Requests';
 import { ReportsPage } from '@/pages/medecin/Reports';
 import { ReportViewPage } from '@/pages/medecin/ReportView';
 import { PatientsPage } from '@/pages/medecin/Patients';
+import { HistoryPage } from '@/pages/medecin/History';
 
 // Secrétaire pages
-import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending } from '@/pages/secretaire';
+import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending, RoutingRules } from '@/pages/secretaire';
 
 // Admin pages
-import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports, SpecialEmoluments } from '@/pages/admin';
+import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports, SpecialEmoluments, ActivityLogs } from '@/pages/admin';
 
 // Common pages
 import { ProfilePage } from '@/pages/common/Profile';
 import { SettingsPage } from '@/pages/common/Settings';
 
-import type { UserRole } from '@/config/roles';
-
-interface UserSession {
-  email: string;
-  name: string;
-  role: UserRole;
-  avatar?: string;
-}
-
-interface AppRouterProps {
-  user: UserSession | null;
-  onLogin: (email: string, password: string) => void;
-  onLogout: () => void;
-}
-
-// Composant pour les routes protégées
-function ProtectedRoute({ 
-  children, 
-  user, 
-  allowedRoles 
-}: { 
-  children: React.ReactNode; 
-  user: UserSession | null;
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
   allowedRoles?: UserRole[];
 }) {
+  const { user } = useAuthContext();
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Rediriger vers le dashboard approprié si l'utilisateur n'a pas accès
     return <Navigate to={`/${user.role}`} replace />;
   }
 
   return <>{children}</>;
 }
 
-// Composant pour la page de login
-function LoginRoute({ 
-  user, 
-  onLogin 
-}: { 
-  user: UserSession | null; 
-  onLogin: (email: string, password: string) => void;
-}) {
+function LoginRoute() {
+  const { user } = useAuthContext();
+
   if (user) {
     return <Navigate to={`/${user.role}`} replace />;
   }
-  return <LoginPage onLogin={onLogin} />;
+
+  return <LoginPage />;
 }
 
-export function AppRouter({ user, onLogin, onLogout }: AppRouterProps) {
-  const router = createBrowserRouter([
-    // Route de login
-    {
-      path: '/login',
-      element: <LoginRoute user={user} onLogin={onLogin} />,
-    },
+function RootRedirect() {
+  const { user } = useAuthContext();
+  return <Navigate to={user ? `/${user.role}` : '/login'} replace />;
+}
 
-    // Routes Cardiologue
-    {
-      path: '/cardiologue',
-      element: (
-        <ProtectedRoute user={user} allowedRoles={['cardiologue']}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <CardiologueDashboard /> },
-        { path: 'pending', element: <PendingECG /> },
-        { path: 'urgent', element: <PendingECG /> },
-        { path: 'second-opinion', element: <SecondOpinionRequests /> },
-        { path: 'completed', element: <CompletedECG /> },
-        { path: 'reports', element: <CompletedECG /> },
-        { path: 'statistics', element: <div className="p-6"><h1 className="text-2xl font-bold">Statistiques</h1><p className="text-gray-500">Page en construction...</p></div> },
-      ],
-    },
 
-    // Route AnalyzeECG en PLEIN ÉCRAN (sans sidebar)
-    {
-      path: '/cardiologue/analyze/:ecgId',
-      element: (
-        <ProtectedRoute user={user} allowedRoles={['cardiologue']}>
-          <AnalyzeECG />
-        </ProtectedRoute>
-      ),
-    },
+export function AppRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Login */}
+        <Route path="/login" element={<LoginRoute />} />
 
-    // Routes Médecin
-    {
-      path: '/medecin',
-      element: (
-        <ProtectedRoute user={user} allowedRoles={['medecin']}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <MedecinDashboard /> },
-        { path: 'new-ecg', element: <NewECGPage /> },
-        { path: 'requests', element: <RequestsPage /> },
-        { path: 'patients', element: <PatientsPage /> },
-        { path: 'reports', element: <ReportsPage /> },
-        { path: 'reports/:reportId', element: <ReportViewPage /> },
-        { path: 'history', element: <div className="p-6"><h1 className="text-2xl font-bold">Historique</h1><p className="text-gray-500">Page en construction...</p></div> },
-      ],
-    },
+        {/* Cardiologue */}
+        <Route
+          path="/cardiologue"
+          element={
+            <ProtectedRoute allowedRoles={['cardiologue']}>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<CardiologueDashboard />} />
+          <Route path="pending" element={<PendingECG />} />
+          <Route path="urgent" element={<PendingECG />} />
+          <Route path="second-opinion" element={<SecondOpinionRequests />} />
+          <Route path="completed" element={<CompletedECG />} />
+          <Route path="reports" element={<CompletedECG />} />
+          <Route path="statistics" element={<CardiologueStatistics />} />
+        </Route>
 
-    // Routes Secrétaire
-    {
-      path: '/secretaire',
-      element: (
-        <ProtectedRoute user={user} allowedRoles={['secretaire']}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <SecretaireDashboard /> },
-        { path: 'inbox', element: <ECGInbox /> },
-        { path: 'assign', element: <ECGAssignment /> },
-        { path: 'send-reports', element: <ReportSending /> },
-        { path: 'patients', element: <div className="p-6"><h1 className="text-2xl font-bold">Patients</h1><p className="text-gray-500">Page en construction...</p></div> },
-        { path: 'archives', element: <div className="p-6"><h1 className="text-2xl font-bold">Archives</h1><p className="text-gray-500">Page en construction...</p></div> },
-      ],
-    },
+        {/* Cardiologue — Analyse plein écran (sans layout) */}
+        <Route
+          path="/cardiologue/analyze/:ecgId"
+          element={
+            <ProtectedRoute allowedRoles={['cardiologue']}>
+              <AnalyzeECG />
+            </ProtectedRoute>
+          }
+        />
 
-    // Routes Admin
-    {
-      path: '/admin',
-      element: (
-        <ProtectedRoute user={user} allowedRoles={['admin']}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <AdminDashboard /> },
-        { path: 'users', element: <UserManagement /> },
-        { path: 'hospitals', element: <HospitalManagement /> },
-        { path: 'statistics', element: <Statistics /> },
-        { path: 'tarifs', element: <TarifSettings /> },
-        { path: 'emoluments', element: <Emoluments /> },
-        { path: 'special-emoluments', element: <SpecialEmoluments /> },
-        { path: 'financial', element: <FinancialReports /> },
-        { path: 'settings', element: <div className="p-6"><h1 className="text-2xl font-bold">Paramètres système</h1><p className="text-gray-500">Page en construction...</p></div> },
-        { path: 'logs', element: <div className="p-6"><h1 className="text-2xl font-bold">Logs d'activité</h1><p className="text-gray-500">Page en construction...</p></div> },
-      ],
-    },
+        {/* Médecin */}
+        <Route
+          path="/medecin"
+          element={
+            <ProtectedRoute allowedRoles={['medecin']}>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<MedecinDashboard />} />
+          <Route path="new-ecg" element={<NewECGPage />} />
+          <Route path="requests" element={<RequestsPage />} />
+          <Route path="patients" element={<PatientsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="reports/:reportId" element={<ReportViewPage />} />
+          <Route path="history" element={<HistoryPage />} />
+        </Route>
 
-    // Routes communes (accessibles à tous les utilisateurs connectés)
-    {
-      path: '/profile',
-      element: (
-        <ProtectedRoute user={user}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <ProfilePage /> },
-      ],
-    },
-    {
-      path: '/settings',
-      element: (
-        <ProtectedRoute user={user}>
-          <DashboardLayout user={user!} onLogout={onLogout} />
-        </ProtectedRoute>
-      ),
-      children: [
-        { index: true, element: <SettingsPage /> },
-      ],
-    },
+        {/* Secrétaire */}
+        <Route
+          path="/secretaire"
+          element={
+            <ProtectedRoute allowedRoles={['secretaire']}>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<SecretaireDashboard />} />
+          <Route path="inbox" element={<ECGInbox />} />
+          <Route path="assign" element={<ECGAssignment />} />
+          <Route path="send-reports" element={<ReportSending />} />
+          <Route path="routing" element={<RoutingRules />} />
+          <Route path="patients" element={<UnderConstruction title="Patients" />} />
+          <Route path="archives" element={<UnderConstruction title="Archives" />} />
+        </Route>
 
-    // Redirection par défaut
-    {
-      path: '/',
-      element: user ? <Navigate to={`/${user.role}`} replace /> : <Navigate to="/login" replace />,
-    },
+        {/* Admin */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="hospitals" element={<HospitalManagement />} />
+          <Route path="statistics" element={<Statistics />} />
+          <Route path="tarifs" element={<TarifSettings />} />
+          <Route path="emoluments" element={<Emoluments />} />
+          <Route path="special-emoluments" element={<SpecialEmoluments />} />
+          <Route path="financial" element={<FinancialReports />} />
+          <Route path="settings" element={<UnderConstruction title="Paramètres système" />} />
+          <Route path="logs" element={<ActivityLogs />} />
+        </Route>
 
-    // 404 - Page non trouvée
-    {
-      path: '*',
-      element: (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <h1 className="text-6xl font-bold text-gray-300">404</h1>
-            <p className="text-xl text-gray-600 mt-4">Page non trouvée</p>
-            <button 
-              onClick={() => window.history.back()}
-              className="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              Retour
-            </button>
-          </div>
-        </div>
-      ),
-    },
-  ]);
+        {/* Routes communes */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<ProfilePage />} />
+        </Route>
 
-  return <RouterProvider router={router} />;
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<SettingsPage />} />
+        </Route>
+
+        {/* Redirections */}
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

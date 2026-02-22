@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Heart, Activity, LogIn, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Heart, Activity, LogIn, Mail, Lock, ArrowRight, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuthContext } from '@/providers/AuthProvider';
 
-interface LoginPageProps {
-  onLogin: (email: string, password: string) => void;
-}
+const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage() {
+  const { login, requestPasswordReset } = useAuthContext();
+
+  // --- État du formulaire de connexion ---
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,284 +24,295 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // --- État de la modale mot de passe oublié ---
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
-    // Simulation de délai de connexion
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Pour la démo, accepter n'importe quel email/password
-    if (email && password) {
-      onLogin(email, password);
-    } else {
-      setError('Veuillez remplir tous les champs');
+    try {
+      if (!email || !password) {
+        setError('Veuillez remplir tous les champs');
+        return;
+      }
+      await login(email, password, rememberMe);
+    } catch {
+      setError('Identifiants incorrects');
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      await requestPasswordReset(forgotEmail);
+      setForgotSent(true);
+    } catch {
+      // ne pas exposer les erreurs
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const closeForgot = () => {
+    setForgotOpen(false);
+    setForgotEmail('');
+    setForgotSent(false);
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Partie gauche - Illustration et branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 relative overflow-hidden">
-        {/* Motif de fond */}
-        <div className="absolute inset-0 bg-ecg-pattern opacity-10"></div>
-        
-        {/* Cercles décoratifs */}
-        <div className="absolute -top-20 -left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-indigo-300/20 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-white/5 rounded-full blur-2xl"></div>
-        
-        {/* Contenu */}
-        <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
-          {/* Logo animé */}
-          <div className="mb-8 relative">
-            <div className="w-32 h-32 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30 shadow-2xl">
-              <div className="relative">
-                <Heart className="w-16 h-16 text-white animate-pulse-soft" fill="currentColor" />
-                <Activity className="w-10 h-10 text-indigo-200 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+    <>
+      <div className="min-h-screen flex">
+        {/* Partie gauche - Illustration et branding */}
+        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 relative overflow-hidden">
+          <div className="absolute inset-0 bg-ecg-pattern opacity-10"></div>
+          <div className="absolute -top-20 -left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-indigo-300/20 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-white/5 rounded-full blur-2xl"></div>
+
+          <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
+            <div className="mb-8 relative">
+              <div className="w-32 h-32 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30 shadow-2xl">
+                <div className="relative">
+                  <Heart className="w-16 h-16 text-white animate-pulse-soft" fill="currentColor" />
+                  <Activity className="w-10 h-10 text-indigo-200 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
               </div>
+              <div className="absolute inset-0 w-32 h-32 bg-white/10 rounded-full animate-ping opacity-20"></div>
             </div>
-            {/* Effet de pulsation */}
-            <div className="absolute inset-0 w-32 h-32 bg-white/10 rounded-full animate-ping opacity-20"></div>
-          </div>
-          
-          <h1 className="text-5xl font-bold mb-4 tracking-tight">
-            Xpress-ECG
-          </h1>
-          
-          <p className="text-xl text-indigo-100 text-center max-w-md mb-8 leading-relaxed">
-            Plateforme de télé-interprétation d'électrocardiogrammes
-          </p>
-          
-          {/* Ligne ECG animée */}
-          <svg className="w-80 h-16 text-white/60" viewBox="0 0 400 60">
-            <path
-              d="M0 30 L50 30 L70 30 L90 10 L110 50 L130 20 L150 40 L170 30 L220 30 L240 30 L260 10 L280 50 L300 20 L320 40 L340 30 L400 30"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="animate-ecg-line"
-              style={{ strokeDasharray: 200 }}
-            />
-          </svg>
-          
-          {/* Features */}
-          <div className="mt-12 grid grid-cols-1 gap-4 text-sm">
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <Activity className="w-4 h-4" />
-              </div>
-              <span>Analyse rapide et précise des ECG</span>
-            </div>
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <Heart className="w-4 h-4" />
-              </div>
-              <span>Interprétation par des cardiologues experts</span>
-            </div>
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <ArrowRight className="w-4 h-4" />
-              </div>
-              <span>Rapports sécurisés et conformes</span>
+
+            <h1 className="text-5xl font-bold mb-4 tracking-tight">Xpress-ECG</h1>
+            <p className="text-xl text-indigo-100 text-center max-w-md mb-8 leading-relaxed">
+              Plateforme de télé-interprétation d'électrocardiogrammes
+            </p>
+
+            <svg className="w-80 h-16 text-white/60" viewBox="0 0 400 60">
+              <path
+                d="M0 30 L50 30 L70 30 L90 10 L110 50 L130 20 L150 40 L170 30 L220 30 L240 30 L260 10 L280 50 L300 20 L320 40 L340 30 L400 30"
+                fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round"
+                className="animate-ecg-line" style={{ strokeDasharray: 200 }}
+              />
+            </svg>
+
+            <div className="mt-12 grid grid-cols-1 gap-4 text-sm">
+              {[
+                { label: 'Analyse rapide et précise des ECG', icon: Activity },
+                { label: 'Interprétation par des cardiologues experts', icon: Heart },
+                { label: 'Rapports sécurisés et conformes', icon: ArrowRight },
+              ].map(({ label, icon: Icon }) => (
+                <div key={label} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
+                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <span>{label}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Partie droite - Formulaire de connexion */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-indigo-50/30">
-        <div className="w-full max-w-md">
-          {/* Logo mobile */}
-          <div className="lg:hidden flex flex-col items-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4">
-              <Heart className="w-10 h-10 text-white" fill="currentColor" />
+
+        {/* Partie droite - Formulaire de connexion */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-indigo-50/30">
+          <div className="w-full max-w-md">
+            {/* Logo mobile */}
+            <div className="lg:hidden flex flex-col items-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4">
+                <Heart className="w-10 h-10 text-white" fill="currentColor" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900">Xpress-ECG</h1>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Xpress-ECG</h1>
-          </div>
-          
-          <Card className="border-0 shadow-xl shadow-indigo-100/50 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold text-center text-gray-900">
-                Connexion
-              </CardTitle>
-              <CardDescription className="text-center text-gray-500">
-                Accédez à votre espace de travail sécurisé
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Message d'erreur */}
-                {error && (
-                  <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 animate-fade-in">
-                    {error}
-                  </div>
-                )}
-                
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700 font-medium">
-                    Adresse email
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="docteur@hopital.fr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12 bg-gray-50/50 border-gray-200 focus:bg-white focus:border-indigo-400 transition-colors"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                {/* Mot de passe */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-gray-700 font-medium">
-                      Mot de passe
-                    </Label>
-                    <button
-                      type="button"
-                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
-                    >
-                      Mot de passe oublié ?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12 bg-gray-50/50 border-gray-200 focus:bg-white focus:border-indigo-400 transition-colors"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Se souvenir de moi */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                    className="border-gray-300 data-[state=checked]:bg-indigo-500 data-[state=checked]:border-indigo-500"
-                  />
-                  <Label
-                    htmlFor="remember"
-                    className="text-sm text-gray-600 cursor-pointer select-none"
-                  >
-                    Se souvenir de moi sur cet appareil
-                  </Label>
-                </div>
-                
-                {/* Bouton de connexion */}
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-indigo-200 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-300"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>Connexion...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <LogIn className="w-5 h-5" />
-                      <span>Se connecter</span>
+
+            <Card className="border-0 shadow-xl shadow-indigo-100/50 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="space-y-1 pb-4">
+                <CardTitle className="text-2xl font-bold text-center text-gray-900">Connexion</CardTitle>
+                <CardDescription className="text-center text-gray-500">
+                  Accédez à votre espace de travail sécurisé
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {error && (
+                    <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 animate-fade-in" role="alert">
+                      {error}
                     </div>
                   )}
-                </Button>
-              </form>
-              
-              {/* Comptes de démo */}
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <p className="text-xs text-center text-gray-500 mb-3">
-                  Comptes de démonstration
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('cardiologue@demo.fr');
-                      setPassword('demo123');
-                    }}
-                    className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-center"
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-gray-700 font-medium">Adresse email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        id="email" type="email"
+                        placeholder="docteur@hopital.fr"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 h-12 bg-gray-50/50 border-gray-200 focus:bg-white focus:border-indigo-400 transition-colors"
+                        autoComplete="email"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mot de passe */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-gray-700 font-medium">Mot de passe</Label>
+                      <button
+                        type="button"
+                        onClick={() => { setForgotEmail(email); setForgotOpen(true); }}
+                        className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                      >
+                        Mot de passe oublié ?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 pr-10 h-12 bg-gray-50/50 border-gray-200 focus:bg-white focus:border-indigo-400 transition-colors"
+                        autoComplete="current-password"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Se souvenir de moi */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                      className="border-gray-300 data-[state=checked]:bg-indigo-500 data-[state=checked]:border-indigo-500"
+                    />
+                    <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
+                      Se souvenir de moi sur cet appareil
+                    </Label>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-indigo-200 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-300"
+                    disabled={isLoading}
                   >
-                    👨‍⚕️ Cardiologue
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('medecin@demo.fr');
-                      setPassword('demo123');
-                    }}
-                    className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-center"
-                  >
-                    🩺 Médecin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('secretaire@demo.fr');
-                      setPassword('demo123');
-                    }}
-                    className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-center"
-                  >
-                    👩‍💼 Secrétaire
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@demo.fr');
-                      setPassword('demo123');
-                    }}
-                    className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-center"
-                  >
-                    ⚙️ Admin
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Footer */}
-          <p className="mt-8 text-center text-sm text-gray-500">
-            © 2025 Xpress-ECG. Tous droits réservés.
-            <br />
-            <span className="text-xs text-gray-400">
-              Plateforme sécurisée conforme aux normes de santé
-            </span>
-          </p>
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Connexion...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <LogIn className="w-5 h-5" />
+                        <span>Se connecter</span>
+                      </div>
+                    )}
+                  </Button>
+                </form>
+
+                {/* Comptes de démonstration */}
+                {IS_DEMO && (
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <p className="text-xs text-center text-gray-500 mb-3">Comptes de démonstration</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {[
+                        { label: 'Cardiologue', email: 'cardiologue@demo.fr' },
+                        { label: 'Médecin', email: 'medecin@demo.fr' },
+                        { label: 'Secrétaire', email: 'secretaire@demo.fr' },
+                        { label: 'Admin', email: 'admin@demo.fr' },
+                      ].map(({ label, email: demoEmail }) => (
+                        <button
+                          key={demoEmail}
+                          type="button"
+                          onClick={() => { setEmail(demoEmail); setPassword('demo123'); }}
+                          className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors text-center"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <p className="mt-8 text-center text-sm text-gray-500">
+              © 2025 Xpress-ECG. Tous droits réservés.
+              <br />
+              <span className="text-xs text-gray-400">Plateforme sécurisée conforme aux normes de santé</span>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Modale Mot de passe oublié */}
+      <Dialog open={forgotOpen} onOpenChange={closeForgot}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mot de passe oublié</DialogTitle>
+            <DialogDescription>
+              {forgotSent
+                ? 'Un email de réinitialisation a été envoyé si cette adresse est enregistrée.'
+                : 'Saisissez votre adresse email pour recevoir un lien de réinitialisation.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {!forgotSent ? (
+            <form onSubmit={handleForgotSubmit} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="email"
+                  placeholder="docteur@hopital.fr"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="pl-10"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeForgot}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Envoyer
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <DialogFooter>
+              <Button onClick={closeForgot} className="w-full">Fermer</Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
-
-
-
-

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload,
   Clock,
   CheckCircle,
   AlertCircle,
@@ -117,48 +116,45 @@ export function MedecinDashboard() {
   };
 
   return (
-    <div className="space-y-5">
-      {/* En-tête avec action rapide */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+    <div className="space-y-4">
+      {/* En-tête avec titre + badge urgents + actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-semibold text-slate-800">Tableau de bord</h1>
-          <p className="text-sm text-slate-500">Bienvenue, suivez vos demandes d'interprétation ECG</p>
-        </div>
-        <Button 
-          className="bg-indigo-600 hover:bg-indigo-700 h-9 text-sm"
-          onClick={() => navigate('/medecin/new-ecg')}
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Nouvel ECG
-        </Button>
-      </div>
-
-      {/* Alerte rapports urgents */}
-      {urgentUnreadCount > 0 && (
-        <div className="bg-red-50/80 border border-red-200/60 rounded-md p-3 animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-red-800">
-                {urgentUnreadCount} rapport{urgentUnreadCount > 1 ? 's' : ''} urgent{urgentUnreadCount > 1 ? 's' : ''} à consulter
-              </p>
-              <p className="text-xs text-red-600">
-                Action immédiate requise
-              </p>
-            </div>
-            <Button 
-              variant="destructive" 
-              size="sm"
-              className="h-8 text-xs"
+          {urgentUnreadCount > 0 && (
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 bg-red-100 border border-red-300 rounded-full text-xs font-semibold text-red-700 animate-pulse hover:bg-red-200 transition-colors"
               onClick={() => navigate('/medecin/reports')}
             >
-              Voir maintenant
-            </Button>
-          </div>
+              <AlertCircle className="h-3 w-3" />
+              {urgentUnreadCount} urgent{urgentUnreadCount > 1 ? 's' : ''} non lu{urgentUnreadCount > 1 ? 's' : ''}
+            </button>
+          )}
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-dashed border-indigo-300/70 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 transition-all group text-xs"
+            onClick={() => navigate('/medecin/requests')}
+          >
+            <FileText className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="font-medium text-slate-700">Mes demandes</span>
+          </button>
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-emerald-200/60 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300 transition-all group text-xs"
+            onClick={() => navigate('/medecin/patients')}
+          >
+            <User className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="font-medium text-slate-700">Patients</span>
+          </button>
+          <Button
+            className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs"
+            onClick={() => navigate('/medecin/new-ecg')}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Nouvel ECG
+          </Button>
+        </div>
+      </div>
 
       {/* Cartes statistiques - Ultra compact */}
       <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
@@ -222,144 +218,88 @@ export function MedecinDashboard() {
         </div>
       </div>
 
-      {/* Actions rapides - Format horizontal compact */}
-      <div className="flex flex-wrap gap-2">
-        <button 
-          className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-indigo-300/70 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-400 transition-all group"
-          onClick={() => navigate('/medecin/new-ecg')}
-        >
-          <div className="w-7 h-7 bg-indigo-100 rounded flex items-center justify-center group-hover:scale-105 transition-transform">
-            <Upload className="h-3.5 w-3.5 text-indigo-600" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-700">Envoyer un ECG</p>
-            <p className="text-[10px] text-slate-500">Nouvelle demande</p>
-          </div>
-        </button>
-
-        <button 
-          className="flex items-center gap-2 px-3 py-2 rounded-md border border-amber-200/60 bg-amber-50/30 hover:bg-amber-50 hover:border-amber-300 transition-all group"
-          onClick={() => navigate('/medecin/requests')}
-        >
-          <div className="w-7 h-7 bg-amber-100 rounded flex items-center justify-center group-hover:scale-105 transition-transform">
-            <FileText className="h-3.5 w-3.5 text-amber-600" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-700">Mes demandes</p>
-            <p className="text-[10px] text-slate-500">Suivre mes ECG</p>
-          </div>
-        </button>
-
-        <button 
-          className="flex items-center gap-2 px-3 py-2 rounded-md border border-emerald-200/60 bg-emerald-50/30 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
-          onClick={() => navigate('/medecin/patients')}
-        >
-          <div className="w-7 h-7 bg-emerald-100 rounded flex items-center justify-center group-hover:scale-105 transition-transform">
-            <User className="h-3.5 w-3.5 text-emerald-600" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-medium text-slate-700">Mes patients</p>
-            <p className="text-[10px] text-slate-500">Historique</p>
-          </div>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Rapports à consulter */}
-        {unreadCount > 0 && (
-          <Card className="border-amber-200/60 bg-amber-50/20">
-            <CardHeader className="border-b border-amber-100/60 p-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-amber-600" />
-                  Rapports à consulter
-                  <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5">{unreadCount}</Badge>
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/medecin/reports')}>
-                  Voir tout
-                  <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-amber-100/50">
-                {unreadReports.map((report) => (
-                  <div
-                    key={report.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 hover:bg-amber-50/50 cursor-pointer transition-colors",
-                      report.isUrgent && "bg-red-50/50 hover:bg-red-50"
-                    )}
-                    onClick={() => navigate(`/medecin/reports/${report.id}`)}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className={cn(
-                        "w-1.5 h-1.5 rounded-full",
-                        report.isUrgent ? "bg-red-500 animate-pulse" : "bg-amber-500"
-                      )} />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-slate-800">{report.patientName}</p>
-                          {report.isUrgent && (
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">URGENT</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 truncate max-w-[220px]">
-                          {report.conclusion}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Liste des demandes récentes */}
-        <Card className={unreadCount === 0 ? 'lg:col-span-2' : ''}>
-          <CardHeader className="border-b border-border/40 p-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Demandes récentes</CardTitle>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/medecin/requests')}>
-                Voir tout
-                <ChevronRight className="h-3 w-3 ml-1" />
-              </Button>
+      {/* Card unifiée : Rapports non lus + Demandes récentes */}
+      <Card>
+        <CardHeader className="border-b p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 ? (
+                <>
+                  <Bell className="h-4 w-4 text-amber-500" />
+                  <CardTitle className="text-sm font-medium">
+                    Rapports reçus
+                    <Badge className="ml-2 bg-amber-100 text-amber-700 text-[10px] px-1.5">{unreadCount} non lu{unreadCount > 1 ? 's' : ''}</Badge>
+                  </CardTitle>
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 text-slate-400" />
+                  <CardTitle className="text-sm font-medium">Demandes récentes</CardTitle>
+                </>
+              )}
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border/30">
-              {requests.map((request) => (
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate(unreadCount > 0 ? '/medecin/reports' : '/medecin/requests')}>
+              Voir tout <ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Rapports non lus (si présents) */}
+          {unreadCount > 0 && (
+            <div className="divide-y divide-amber-100/50 border-b">
+              {unreadReports.map((report) => (
                 <div
-                  key={request.id}
-                  className="flex items-center justify-between p-2 hover:bg-slate-50/80 cursor-pointer transition-colors"
-                  onClick={() => navigate('/medecin/requests')}
+                  key={report.id}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2 hover:bg-amber-50/50 cursor-pointer transition-colors",
+                    report.isUrgent && "bg-red-50/40 hover:bg-red-50"
+                  )}
+                  onClick={() => navigate(`/medecin/reports/${report.id}`)}
                 >
                   <div className="flex items-center gap-2">
-                    {getStatusIcon(request.status)}
+                    <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", report.isUrgent ? "bg-red-500 animate-pulse" : "bg-amber-500")} />
                     <div>
-                      <p className="text-xs font-medium text-slate-800">{request.patient_name}</p>
-                      <p className="text-[10px] text-slate-500">{request.id} • {formatDate(request.date)}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-slate-800">{report.patientName}</p>
+                        {report.isUrgent && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">URGENT</Badge>}
+                      </div>
+                      <p className="text-[10px] text-slate-500 truncate max-w-[280px]">{report.conclusion}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {request.urgency === 'urgent' && (
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                        Urgent
-                      </Badge>
-                    )}
-                    <Badge className={cn("text-[10px] px-1.5 py-0.5", getStatusColor(request.status))}>
-                      {getStatusLabel(request.status)}
-                    </Badge>
-                    <ChevronRight className="h-3 w-3 text-slate-400" />
-                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+          {/* Demandes récentes */}
+          <div className="divide-y divide-border/30">
+            {requests.map((request) => (
+              <div
+                key={request.id}
+                className="flex items-center justify-between px-3 py-2 hover:bg-slate-50/80 cursor-pointer transition-colors"
+                onClick={() => navigate('/medecin/requests')}
+              >
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(request.status)}
+                  <div>
+                    <p className="text-xs font-medium text-slate-800">{request.patient_name}</p>
+                    <p className="text-[10px] text-slate-500">{request.id} • {formatDate(request.date)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {request.urgency === 'urgent' && (
+                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Urgent</Badge>
+                  )}
+                  <Badge className={cn("text-[10px] px-1.5 py-0.5", getStatusColor(request.status))}>
+                    {getStatusLabel(request.status)}
+                  </Badge>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

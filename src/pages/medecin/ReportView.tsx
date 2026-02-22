@@ -226,7 +226,7 @@ export function ReportViewPage() {
               <div>
                 <div className="flex items-center gap-2 text-gray-500 mb-1">
                   <Clock className="h-4 w-4" />
-                  <span className="text-sm">Date réception</span>
+                  <span className="text-sm">Rapport reçu le</span>
                 </div>
                 <p className="font-semibold">{formatDate(report.dateReceived)}</p>
               </div>
@@ -271,30 +271,30 @@ export function ReportViewPage() {
                 Mesures
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Fréquence cardiaque</span>
-                  <span className="font-semibold">{report.measurements.heartRate} bpm</span>
+            <CardContent className="pt-3">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex justify-between items-center py-1.5 border-b border-dashed">
+                  <span className="text-sm text-gray-600">Fréquence</span>
+                  <span className="text-sm font-semibold">{report.measurements.heartRate} <span className="font-normal text-gray-400">bpm</span></span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Intervalle PR</span>
-                  <span className="font-semibold">
-                    {report.measurements.prInterval > 0 ? `${report.measurements.prInterval} ms` : 'N/A'}
+                <div className="flex justify-between items-center py-1.5 border-b border-dashed">
+                  <span className="text-sm text-gray-600">Intervalle PR</span>
+                  <span className="text-sm font-semibold">
+                    {report.measurements.prInterval > 0 ? <>{report.measurements.prInterval} <span className="font-normal text-gray-400">ms</span></> : <span className="text-gray-400">N/A</span>}
                   </span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Durée QRS</span>
-                  <span className="font-semibold">{report.measurements.qrsDuration} ms</span>
+                <div className="flex justify-between items-center py-1.5 border-b border-dashed">
+                  <span className="text-sm text-gray-600">Durée QRS</span>
+                  <span className="text-sm font-semibold">{report.measurements.qrsDuration} <span className="font-normal text-gray-400">ms</span></span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">Intervalle QT</span>
-                  <span className="font-semibold">{report.measurements.qtInterval} ms</span>
+                <div className="flex justify-between items-center py-1.5 border-b border-dashed">
+                  <span className="text-sm text-gray-600">Intervalle QT</span>
+                  <span className="text-sm font-semibold">{report.measurements.qtInterval} <span className="font-normal text-gray-400">ms</span></span>
                 </div>
                 {report.measurements.qrsAxis && (
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-gray-600">Axe QRS</span>
-                    <span className="font-semibold">{report.measurements.qrsAxis}°</span>
+                  <div className="flex justify-between items-center py-1.5 col-span-2 border-b border-dashed">
+                    <span className="text-sm text-gray-600">Axe QRS</span>
+                    <span className="text-sm font-semibold">{report.measurements.qrsAxis}<span className="font-normal text-gray-400">°</span></span>
                   </div>
                 )}
               </div>

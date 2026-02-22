@@ -7,23 +7,27 @@ interface ImportECGParams {
   patientName: string;
   patientId?: string;
   medicalCenter: string;
+  hospitalId: string;
 }
 
+/**
+ * Hook pour importer un ECG.
+ * Sera pleinement fonctionnel une fois le backend Supabase connecte.
+ */
 export function useECGImport() {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const { user } = useAuthContext();
 
-  const importECG = async ({ file, patientName, patientId, medicalCenter }: ImportECGParams) => {
-    if (!user?.hospital?.id) {
-      throw new Error('Aucun hôpital associé à l\'utilisateur');
+  const importECG = async ({ file, patientName, patientId, medicalCenter, hospitalId }: ImportECGParams) => {
+    if (!user) {
+      throw new Error('Utilisateur non connecté');
     }
 
     try {
       setImporting(true);
       setProgress(0);
 
-      // Simuler la progression
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
@@ -32,8 +36,8 @@ export function useECGImport() {
         patientName,
         patientId,
         medicalCenter,
-        hospitalId: user.hospital.id,
-        referringDoctorId: user.id
+        hospitalId,
+        referringDoctorId: user.email,
       });
 
       clearInterval(progressInterval);

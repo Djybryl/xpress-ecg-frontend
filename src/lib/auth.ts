@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import { User } from '@supabase/supabase-js';
-
-export type UserRole = 'doctor' | 'expert' | 'secretary';
+import type { UserRole } from '@/config/roles';
 
 interface SignUpData {
   email: string;
@@ -42,8 +41,8 @@ export async function signUp({
 
     if (profileError) throw profileError;
 
-    // 3. If doctor, create hospital and link user
-    if (role === 'doctor' && hospitalName) {
+    // 3. If medecin, create hospital and link user
+    if (role === 'medecin' && hospitalName) {
       // Create hospital
       const { data: hospitalData, error: hospitalError } = await supabase
         .from('hospitals')

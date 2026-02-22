@@ -61,6 +61,7 @@ import {
   type ECGMeasurements,
   type ECGInterpretation 
 } from '@/stores/useCardiologueStore';
+import { useAuthContext } from '@/providers/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -100,7 +101,8 @@ export function AnalyzeECG() {
   const { ecgId } = useParams<{ ecgId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getById, getPending, getUrgent, saveMeasurements, completeAnalysis } = useCardiologueStore();
+  const { getById, getAvailable, getUrgent, saveMeasurements, saveDraft, completeAnalysis, startAnalysis } = useCardiologueStore();
+  const { user } = useAuthContext();
 
   const [ecg, setEcg] = useState(ecgId ? getById(ecgId) : null);
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -184,33 +186,47 @@ export function AnalyzeECG() {
     setCharCount(interpretation.length);
   }, [interpretation]);
 
-  // Auto-save toutes les 10 secondes
+  // Auto-save brouillon toutes les 15 secondes
   useEffect(() => {
     const interval = setInterval(() => {
-      if (ecgId && (measurements.heartRate || interpretation)) {
+      if (ecgId && interpretation.trim()) {
         setIsAutoSaving(true);
+        saveDraft(ecgId, {
+          findings: [],
+          conclusion: interpretation,
+          recommendations: '',
+          savedAt: new Date().toISOString(),
+        });
         setTimeout(() => {
           setLastSaved(new Date());
           setIsAutoSaving(false);
-        }, 500);
+        }, 400);
       }
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
-  }, [ecgId, measurements, interpretation]);
+  }, [ecgId, interpretation, saveDraft]);
 
-  // Navigation
-  const pendingECGs = getPending();
-  const currentIndex = pendingECGs.findIndex(e => e.id === ecgId);
+  // Restaurer le brouillon au chargement si disponible
+  useEffect(() => {
+    if (ecg?.draft?.conclusion && !ecg.interpretation) {
+      setInterpretation(ecg.draft.conclusion);
+      setLastSaved(new Date(ecg.draft.savedAt));
+    }
+  }, [ecg?.id]);
+
+  // Navigation — on navigue dans les ECG disponibles + mes en cours
+  const availableECGs = getAvailable(user?.email);
+  const currentIndex = availableECGs.findIndex(e => e.id === ecgId);
   const hasPrevious = currentIndex > 0;
-  const hasNext = currentIndex < pendingECGs.length - 1;
-  const totalECGs = pendingECGs.length;
+  const hasNext = currentIndex < availableECGs.length - 1;
+  const totalECGs = availableECGs.length;
 
   const handlePrevious = () => {
-    if (hasPrevious) navigate(`/cardiologue/analyze/${pendingECGs[currentIndex - 1].id}`);
+    if (hasPrevious) navigate(`/cardiologue/analyze/${availableECGs[currentIndex - 1].id}`);
   };
 
   const handleNext = () => {
-    if (hasNext) navigate(`/cardiologue/analyze/${pendingECGs[currentIndex + 1].id}`);
+    if (hasNext) navigate(`/cardiologue/analyze/${availableECGs[currentIndex + 1].id}`);
   };
 
   // Zoom
@@ -402,7 +418,7 @@ export function AnalyzeECG() {
 
       if (goToNext && hasNext) {
         setTimeout(() => {
-          navigate(`/cardiologue/analyze/${pendingECGs[currentIndex + 1].id}`);
+          navigate(`/cardiologue/analyze/${availableECGs[currentIndex + 1].id}`);
         }, 500);
       } else {
         navigate('/cardiologue');
@@ -523,7 +539,7 @@ export function AnalyzeECG() {
                 <div className="px-2 py-1.5 text-xs font-medium text-gray-700">
                   📋 Tous les ECG ({totalECGs})
                 </div>
-                {getPending().slice(0, 8).map((allECG, idx) => (
+                {getAvailable(user?.email).slice(0, 8).map((allECG, idx) => (
                   <DropdownMenuItem 
                     key={allECG.id}
                     onClick={() => navigate(`/cardiologue/analyze/${allECG.id}`)}
@@ -540,9 +556,9 @@ export function AnalyzeECG() {
                     </div>
                   </DropdownMenuItem>
                 ))}
-                {getPending().length > 8 && (
+                {getAvailable(user?.email).length > 8 && (
                   <div className="px-2 py-1.5 text-[10px] text-gray-500 text-center">
-                    + {getPending().length - 8} autres ECG
+                    + {getAvailable(user?.email).length - 8} autres ECG
                   </div>
                 )}
               </DropdownMenuContent>

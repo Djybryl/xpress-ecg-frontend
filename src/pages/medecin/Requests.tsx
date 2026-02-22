@@ -414,74 +414,64 @@ export function RequestsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-3">
       {/* En-tête */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mes demandes</h1>
-          <p className="text-gray-500">Suivez l'état de vos demandes d'interprétation ECG</p>
-        </div>
-        
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <FileText className="h-5 w-5 text-indigo-600" />
+          Mes demandes
+        </h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Exporter
+            <Button variant="outline" size="sm" className="h-8 text-xs">
+              <Download className="h-3.5 w-3.5 mr-1.5" />Exporter
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => handleExport('pdf')}>
-              <FileText className="h-4 w-4 mr-2" />
-              Exporter en PDF
+              <FileText className="h-4 w-4 mr-2" />Exporter en PDF
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleExport('excel')}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exporter en Excel
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Exporter en Excel
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Onglets par statut */}
-      <Tabs defaultValue="all" onValueChange={setStatusFilter}>
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-          <TabsTrigger value="all">
-            Toutes ({mockRequests.length})
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="gap-1">
-            <Clock className="h-3 w-3" />
-            Attente ({stats.pending})
-          </TabsTrigger>
-          <TabsTrigger value="received" className="gap-1">
-            <Inbox className="h-3 w-3" />
-            Reçu ({stats.received})
-          </TabsTrigger>
-          <TabsTrigger value="analyzing" className="gap-1">
-            <Activity className="h-3 w-3" />
-            Analyse ({stats.analyzing})
-          </TabsTrigger>
-          <TabsTrigger value="completed" className="gap-1">
-            <CheckCircle className="h-3 w-3" />
-            Terminé ({stats.completed})
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {/* Tableau des demandes */}
       <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="text-lg">Liste des demandes</CardTitle>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher..."
-                  className="pl-9 w-[250px]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+        <CardHeader className="border-b p-0">
+          {/* Barre unique : onglets + recherche */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
+            <Tabs defaultValue="all" onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }} className="flex-1">
+              <TabsList className="h-8 bg-transparent p-0 gap-1">
+                {[
+                  { value: 'all',       label: 'Tout',     count: mockRequests.length, icon: null },
+                  { value: 'pending',   label: 'Attente',  count: stats.pending,       icon: Clock },
+                  { value: 'received',  label: 'Reçu',     count: stats.received,      icon: Inbox },
+                  { value: 'analyzing', label: 'Analyse',  count: stats.analyzing,     icon: Activity },
+                  { value: 'completed', label: 'Terminé',  count: stats.completed,     icon: CheckCircle },
+                ].map(tab => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger key={tab.value} value={tab.value}
+                      className="h-7 px-2.5 text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm gap-1">
+                      {Icon && <Icon className="h-3 w-3" />}
+                      {tab.label}
+                      <span className="text-[10px] bg-gray-200 text-gray-600 rounded-full px-1.5 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-700">{tab.count}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+            <div className="relative shrink-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input
+                placeholder="Patient ou ID…"
+                className="pl-8 h-7 text-xs w-40"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              />
             </div>
           </div>
         </CardHeader>
@@ -566,6 +556,7 @@ export function RequestsPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-7 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate('/medecin/reports');
@@ -575,11 +566,16 @@ export function RequestsPage() {
                             Rapport
                           </Button>
                         )}
-                        {(request.status === 'pending' || request.status === 'received') && waitingTime.isLong && (
+                        {request.status !== 'completed' && (
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            className={cn(
+                              "h-7 text-xs",
+                              waitingTime.isLong
+                                ? "text-amber-600 border-amber-300 hover:bg-amber-50"
+                                : "text-gray-500 border-gray-200 hover:bg-gray-50"
+                            )}
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedRequest(request);

@@ -3,35 +3,25 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Header } from '@/components/shared/Header';
 import { Sidebar } from '@/components/shared/Sidebar';
 import { getNavigationForRole } from '@/config/navigation';
-import type { UserRole } from '@/config/roles';
+import { useAuthContext } from '@/providers/AuthProvider';
 
-interface UserSession {
-  email: string;
-  name: string;
-  role: UserRole;
-  avatar?: string;
-}
-
-interface DashboardLayoutProps {
-  user: UserSession;
-  onLogout: () => void;
-}
-
-export function DashboardLayout({ user, onLogout }: DashboardLayoutProps) {
+export function DashboardLayout() {
+  const { user, logout } = useAuthContext();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
+
+  if (!user) return null;
 
   const navigation = getNavigationForRole(user.role);
 
   const handleLogout = () => {
-    onLogout();
+    logout();
     navigate('/login');
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Header
-        user={user}
         onLogout={handleLogout}
         onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         showMenuButton={true}

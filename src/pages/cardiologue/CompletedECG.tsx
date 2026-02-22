@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   Search, 
   Filter,
   User,
   Building2,
-  Clock,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -42,21 +41,27 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useCardiologueStore, type CardiologueECG } from '@/stores/useCardiologueStore';
+import { useAuthContext } from '@/providers/AuthProvider';
+import { ReportPDFPreview } from '@/components/reports/ReportPDFPreview';
 import { format, parseISO, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 export function CompletedECG() {
-  const { getCompleted, getCounts } = useCardiologueStore();
+  const { getMyCompleted, getCounts } = useCardiologueStore();
+  const { user } = useAuthContext();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [resultFilter, setResultFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [viewReport, setViewReport] = useState<CardiologueECG | null>(null);
+  const [pdfPreviewECG, setPdfPreviewECG] = useState<CardiologueECG | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
-  const completedECGs = getCompleted();
-  const counts = getCounts();
+  const completedECGs = user?.email ? getMyCompleted(user.email) : [];
+  const counts = getCounts(user?.email);
 
   // Statistiques
   const normalCount = completedECGs.filter(e => e.interpretation?.isNormal).length;
@@ -91,130 +96,79 @@ export function CompletedECG() {
     return matchesSearch && matchesResult && matchesPeriod;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
+  const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [searchTerm, resultFilter, periodFilter]);
+
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
+    <div className="space-y-3">
+      {/* En-tête compact avec résumé inline */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CheckCircle2 className="h-6 w-6 text-green-600" />
-            ECG Terminés
-          </h1>
-          <p className="text-gray-500 mt-1">Historique des ECG analysés</p>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-green-600" />
+          ECG Terminés
+        </h1>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5" />{counts.myCompleted} total
+          </span>
+          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
+            <Calendar className="h-3.5 w-3.5" />{thisWeekCount} cette semaine
+          </span>
+          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium">
+            <TrendingUp className="h-3.5 w-3.5" />
+            {normalCount} normaux{completedECGs.length > 0 ? ` (${Math.round((normalCount / completedECGs.length) * 100)}%)` : ''}
+          </span>
+          {abnormalCount > 0 && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-medium">
+              <Activity className="h-3.5 w-3.5" />{abnormalCount} anormaux
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-600 text-sm font-medium">Total analysés</p>
-                <p className="text-2xl font-bold text-green-700">{counts.completed}</p>
-              </div>
-              <div className="h-10 w-10 bg-green-200 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">Cette semaine</p>
-                <p className="text-2xl font-bold text-blue-700">{thisWeekCount}</p>
-              </div>
-              <div className="h-10 w-10 bg-blue-200 rounded-full flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-600 text-sm font-medium">Normaux</p>
-                <p className="text-2xl font-bold text-emerald-700">{normalCount}</p>
-                <p className="text-xs text-emerald-500">
-                  {counts.completed > 0 ? Math.round((normalCount / counts.completed) * 100) : 0}%
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-emerald-200 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-emerald-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-600 text-sm font-medium">Anormaux</p>
-                <p className="text-2xl font-bold text-amber-700">{abnormalCount}</p>
-                <p className="text-xs text-amber-500">
-                  {counts.completed > 0 ? Math.round((abnormalCount / counts.completed) * 100) : 0}%
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-amber-200 rounded-full flex items-center justify-center">
-                <Activity className="h-5 w-5 text-amber-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtres */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher patient, ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={resultFilter} onValueChange={setResultFilter}>
-              <SelectTrigger className="w-[150px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Résultat" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                <SelectItem value="normal">Normaux</SelectItem>
-                <SelectItem value="abnormal">Anormaux</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={periodFilter} onValueChange={setPeriodFilter}>
-              <SelectTrigger className="w-[150px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toute période</SelectItem>
-                <SelectItem value="today">Aujourd'hui</SelectItem>
-                <SelectItem value="week">Cette semaine</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Liste des ECG */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            Historique des analyses
-            <Badge variant="secondary" className="ml-2">{filteredECGs.length}</Badge>
-          </CardTitle>
+        <CardHeader className="pb-2 pt-3 px-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              Historique des analyses
+              <Badge variant="secondary" className="text-xs">{filteredECGs.length}</Badge>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <Input
+                  placeholder="Patient, ID, médecin…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-8 text-sm w-48"
+                />
+              </div>
+              <Select value={resultFilter} onValueChange={setResultFilter}>
+                <SelectTrigger className="h-8 w-28 text-xs">
+                  <Filter className="h-3 w-3 mr-1" /><SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="normal">Normaux</SelectItem>
+                  <SelectItem value="abnormal">Anormaux</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <Calendar className="h-3 w-3 mr-1" /><SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toute période</SelectItem>
+                  <SelectItem value="today">Aujourd'hui</SelectItem>
+                  <SelectItem value="week">Cette semaine</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {filteredECGs.length === 0 ? (
@@ -226,106 +180,77 @@ export function CompletedECG() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>ID ECG</TableHead>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Médecin référent</TableHead>
-                  <TableHead>Terminé le</TableHead>
-                  <TableHead>Résultat</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-gray-50 text-xs">
+                  <TableHead className="w-8 py-2"></TableHead>
+                  <TableHead className="py-2">ID ECG</TableHead>
+                  <TableHead className="py-2">Patient</TableHead>
+                  <TableHead className="py-2">Médecin / Établissement</TableHead>
+                  <TableHead className="py-2">Terminé le</TableHead>
+                  <TableHead className="py-2">Résultat</TableHead>
+                  <TableHead className="py-2 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredECGs.map((ecg) => (
-                  <>
+                {paginatedECGs.map((ecg) => (
+                  <React.Fragment key={ecg.id}>
                     <TableRow 
-                      key={ecg.id}
                       className={cn(
-                        "cursor-pointer hover:bg-gray-50",
-                        expandedRow === ecg.id && "bg-indigo-50"
+                        "cursor-pointer text-sm hover:bg-gray-50",
+                        expandedRow === ecg.id && "bg-indigo-50/60"
                       )}
                     >
-                      <TableCell>
+                      <TableCell className="py-1.5 pr-0">
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                          variant="ghost" size="icon" className="h-6 w-6"
                           onClick={() => setExpandedRow(expandedRow === ecg.id ? null : ecg.id)}
                         >
-                          {expandedRow === ecg.id ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
+                          {expandedRow === ecg.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         </Button>
                       </TableCell>
-                      <TableCell className="font-mono text-sm font-medium">
+                      <TableCell className="py-1.5 font-mono text-xs font-medium text-indigo-700">
                         {ecg.id}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 bg-gray-100 rounded-full flex items-center justify-center">
-                            <User className="h-4 w-4 text-gray-500" />
-                          </div>
+                      <TableCell className="py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                           <div>
-                            <p className="font-medium">{ecg.patientName}</p>
-                            <p className="text-xs text-gray-500">
-                              {ecg.patientGender === 'M' ? 'H' : 'F'}, {ecg.patientAge} ans
-                            </p>
+                            <p className="font-medium leading-tight">{ecg.patientName}</p>
+                            <p className="text-xs text-gray-400">{ecg.patientGender === 'M' ? 'H' : 'F'}, {ecg.patientAge} ans</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <p className="text-sm">{ecg.referringDoctor}</p>
-                            <p className="text-xs text-gray-500">{ecg.hospital}</p>
-                          </div>
-                        </div>
+                      <TableCell className="py-1.5">
+                        <p className="leading-tight">{ecg.referringDoctor}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1"><Building2 className="h-3 w-3" />{ecg.hospital}</p>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm">
-                            {ecg.dateCompleted && format(parseISO(ecg.dateCompleted), 'dd/MM/yyyy HH:mm', { locale: fr })}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {ecg.dateCompleted && formatDistanceToNow(parseISO(ecg.dateCompleted), { addSuffix: true, locale: fr })}
-                          </p>
-                        </div>
+                      <TableCell className="py-1.5">
+                        <p className="leading-tight">
+                          {ecg.dateCompleted && format(parseISO(ecg.dateCompleted), 'dd/MM HH:mm', { locale: fr })}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {ecg.dateCompleted && formatDistanceToNow(parseISO(ecg.dateCompleted), { addSuffix: true, locale: fr })}
+                        </p>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1.5">
                         {ecg.interpretation?.isNormal ? (
-                          <Badge className="bg-green-100 text-green-700">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Normal
+                          <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Normal
                           </Badge>
                         ) : (
-                          <Badge className="bg-amber-100 text-amber-700">
-                            <Activity className="h-3 w-3 mr-1" />
-                            Anormal
+                          <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5">
+                            <Activity className="h-2.5 w-2.5 mr-0.5" />Anormal
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setViewReport(ecg)}
-                            title="Voir le rapport"
-                          >
-                            <Eye className="h-4 w-4 text-indigo-600" />
+                      <TableCell className="py-1.5 text-right">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-7 w-7"
+                            onClick={() => setViewReport(ecg)} title="Voir le rapport">
+                            <Eye className="h-3.5 w-3.5 text-indigo-600" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Télécharger"
-                          >
-                            <Download className="h-4 w-4 text-gray-600" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7"
+                            title="Aperçu PDF" onClick={() => setPdfPreviewECG(ecg)}>
+                            <Download className="h-3.5 w-3.5 text-gray-500" />
                           </Button>
                         </div>
                       </TableCell>
@@ -350,7 +275,7 @@ export function CompletedECG() {
                             <div>
                               <h4 className="font-semibold text-sm mb-2">Constatations</h4>
                               <ul className="space-y-1 text-sm bg-white p-3 rounded border">
-                                {ecg.interpretation?.findings.map((finding, idx) => (
+                                {(ecg.interpretation?.findings ?? []).map((finding, idx) => (
                                   <li key={idx} className="flex items-start gap-2">
                                     <span className="text-green-500 mt-0.5">•</span>
                                     {finding}
@@ -381,10 +306,31 @@ export function CompletedECG() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
+          )}
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t text-xs text-gray-500">
+              <span>{filteredECGs.length} résultat{filteredECGs.length > 1 ? 's' : ''} • page {page}/{totalPages}</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                  return start + i;
+                }).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm"
+                    className={cn('h-6 w-6 p-0 text-xs', p === page && 'bg-indigo-600 text-white')}
+                    onClick={() => setPage(p)}>{p}
+                  </Button>
+                ))}
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -480,7 +426,7 @@ export function CompletedECG() {
               <div>
                 <h4 className="font-semibold border-b pb-2 mb-2">Constatations</h4>
                 <ul className="space-y-1 text-sm">
-                  {viewReport.interpretation?.findings.map((finding, idx) => (
+                  {(viewReport.interpretation?.findings ?? []).map((finding, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                       {finding}
@@ -517,13 +463,23 @@ export function CompletedECG() {
             <Button variant="outline" onClick={() => setViewReport(null)}>
               Fermer
             </Button>
-            <Button variant="outline">
+            <Button onClick={() => { setPdfPreviewECG(viewReport); setViewReport(null); }}>
               <Download className="h-4 w-4 mr-2" />
-              Télécharger PDF
+              Aperçu PDF
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Aperçu PDF */}
+      {pdfPreviewECG && (
+        <ReportPDFPreview
+          ecg={pdfPreviewECG}
+          cardiologistName={user?.name ?? 'Cardiologue'}
+          open={!!pdfPreviewECG}
+          onOpenChange={(open) => { if (!open) setPdfPreviewECG(null); }}
+        />
+      )}
     </div>
   );
 }

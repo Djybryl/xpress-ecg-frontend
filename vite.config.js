@@ -1,7 +1,10 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -18,7 +21,7 @@ export default defineConfig({
       manifest: {
         name: 'Xpress-ECG',
         short_name: 'Xpress-ECG',
-        description: 'Application de gestion et d\'analyse d\'ECG',
+        description: "Application de gestion et d'analyse d'ECG",
         theme_color: '#ffffff',
         icons: [
           {
@@ -43,7 +46,7 @@ export default defineConfig({
               cacheName: 'supabase-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 72 * 60 * 60 // 72 heures
+                maxAgeSeconds: 72 * 60 * 60
               }
             }
           }

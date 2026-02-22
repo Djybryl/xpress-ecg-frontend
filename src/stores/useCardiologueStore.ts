@@ -1,7 +1,11 @@
 import { create } from 'zustand';
+import { useNotificationStore } from './useNotificationStore';
 
 export type ECGStatus = 'pending' | 'in_progress' | 'completed';
 export type ECGUrgency = 'normal' | 'urgent';
+
+export const ANALYSIS_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+export const EXTENSION_DURATION_MS = 10 * 60 * 1000; // +10 minutes par extension
 
 export interface ECGMeasurements {
   heartRate?: number;
@@ -24,6 +28,13 @@ export interface ECGInterpretation {
   isNormal: boolean;
 }
 
+export interface ECGDraft {
+  findings: string[];
+  conclusion: string;
+  recommendations: string;
+  savedAt: string;
+}
+
 export interface CardiologueECG {
   id: string;
   patientName: string;
@@ -41,8 +52,19 @@ export interface CardiologueECG {
   urgency: ECGUrgency;
   clinicalContext: string;
   ecgDate: string;
+  // Routage optionnel par la secrétaire — si absent, visible par tous
+  routedTo?: string[];
+  // Cardiologue qui a pris en charge — les autres ne voient plus cet ECG
+  analyzedBy?: string;
+  analyzedByName?: string;
+  // Deadline d'analyse (ISO) — dépassée → retour automatique au pool
+  analysisDeadline?: string;
+  // Nombre d'extensions de temps demandées
+  extensionCount?: number;
   measurements?: ECGMeasurements;
   interpretation?: ECGInterpretation;
+  // Brouillon auto-sauvegardé
+  draft?: ECGDraft;
   notes?: string;
 }
 
@@ -125,11 +147,15 @@ const mockCardiologueECGs: CardiologueECG[] = [
     hospital: 'Clinique du Sport',
     dateReceived: '2024-12-25T09:00:00',
     dateAssigned: '2024-12-25T09:10:00',
-    dateStarted: '2024-12-25T14:30:00',
+    dateStarted: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
     status: 'in_progress',
     urgency: 'normal',
     clinicalContext: 'Suivi HTA, contrôle sous traitement',
     ecgDate: '2024-12-25',
+    analyzedBy: 'cardiologue@demo.fr',
+    analyzedByName: 'Dr. Sophie Bernard',
+    analysisDeadline: new Date(Date.now() + 9 * 60 * 1000).toISOString(),
+    extensionCount: 0,
     measurements: {
       heartRate: 68,
       prInterval: 165,
@@ -152,6 +178,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
     dateCompleted: '2024-12-24T17:30:00',
     status: 'completed',
     urgency: 'normal',
+    analyzedBy: 'cardiologue@demo.fr',
+    analyzedByName: 'Dr. Sophie Bernard',
     clinicalContext: 'Douleur thoracique atypique',
     ecgDate: '2024-12-24',
     measurements: {
@@ -191,6 +219,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
     dateCompleted: '2024-12-24T15:45:00',
     status: 'completed',
     urgency: 'urgent',
+    analyzedBy: 'cardiologue@demo.fr',
+    analyzedByName: 'Dr. Sophie Bernard',
     clinicalContext: 'Dyspnée d\'effort croissante, œdèmes des membres inférieurs',
     ecgDate: '2024-12-24',
     measurements: {
@@ -231,6 +261,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
     dateCompleted: '2024-12-24T11:25:00',
     status: 'completed',
     urgency: 'normal',
+    analyzedBy: 'cardiologue@demo.fr',
+    analyzedByName: 'Dr. Sophie Bernard',
     clinicalContext: 'Certificat de non contre-indication au sport',
     ecgDate: '2024-12-24',
     measurements: {
@@ -342,20 +374,27 @@ interface CardiologueStore {
   currentECG: CardiologueECG | null;
   isLoading: boolean;
   
-  // Getters
   getByStatus: (status: ECGStatus) => CardiologueECG[];
-  getPending: () => CardiologueECG[];
+  /** ECG disponibles dans le pool : status=pending ET non pris par quelqu'un */
+  getAvailable: (userEmail?: string) => CardiologueECG[];
+  /** ECG en cours pour le cardiologue connecté uniquement */
+  getMyInProgress: (userEmail: string) => CardiologueECG[];
+  /** ECG complétés par le cardiologue connecté uniquement */
+  getMyCompleted: (userEmail: string) => CardiologueECG[];
   getUrgent: () => CardiologueECG[];
-  getInProgress: () => CardiologueECG[];
-  getCompleted: () => CardiologueECG[];
-  getCounts: () => { pending: number; urgent: number; inProgress: number; completed: number; today: number };
+  getCounts: (userEmail?: string) => { available: number; urgent: number; myInProgress: number; myCompleted: number; today: number };
   getById: (id: string) => CardiologueECG | undefined;
   
   // Actions
   setCurrentECG: (ecg: CardiologueECG | null) => void;
-  startAnalysis: (id: string) => void;
+  startAnalysis: (id: string, userEmail: string, userName: string) => void;
+  /** Libère un ECG expiré → retour au pool */
+  releaseExpiredECGs: () => void;
+  /** Demande d'extension de temps */
+  requestTimeExtension: (id: string) => void;
   saveMeasurements: (id: string, measurements: ECGMeasurements) => void;
   saveInterpretation: (id: string, interpretation: ECGInterpretation) => void;
+  saveDraft: (id: string, draft: ECGDraft) => void;
   completeAnalysis: (id: string, interpretation: ECGInterpretation) => void;
   addNote: (id: string, note: string) => void;
 }
@@ -369,41 +408,51 @@ export const useCardiologueStore = create<CardiologueStore>((set, get) => ({
     return get().ecgs.filter(ecg => ecg.status === status);
   },
 
-  getPending: () => {
+  getAvailable: (userEmail?: string) => {
     return get().ecgs
-      .filter(ecg => ecg.status === 'pending')
+      .filter(ecg => {
+        if (ecg.status !== 'pending') return false;
+        // ECG pris par quelqu'un → invisible pour tout le monde
+        if (ecg.analyzedBy) return false;
+        // Si routedTo est défini, ne montrer qu'aux cardiologues ciblés
+        if (ecg.routedTo && ecg.routedTo.length > 0 && userEmail) {
+          return ecg.routedTo.includes(userEmail);
+        }
+        return true;
+      })
       .sort((a, b) => {
-        // Urgents en premier
         if (a.urgency === 'urgent' && b.urgency !== 'urgent') return -1;
         if (a.urgency !== 'urgent' && b.urgency === 'urgent') return 1;
-        // Puis par date d'assignation
         return new Date(a.dateAssigned).getTime() - new Date(b.dateAssigned).getTime();
       });
   },
 
-  getUrgent: () => {
-    return get().ecgs.filter(ecg => ecg.urgency === 'urgent' && ecg.status !== 'completed');
+  getMyInProgress: (userEmail) => {
+    return get().ecgs.filter(ecg => ecg.status === 'in_progress' && ecg.analyzedBy === userEmail);
   },
 
-  getInProgress: () => {
-    return get().ecgs.filter(ecg => ecg.status === 'in_progress');
-  },
-
-  getCompleted: () => {
+  getMyCompleted: (userEmail) => {
     return get().ecgs
-      .filter(ecg => ecg.status === 'completed')
+      .filter(ecg => ecg.status === 'completed' && ecg.analyzedBy === userEmail)
       .sort((a, b) => new Date(b.dateCompleted!).getTime() - new Date(a.dateCompleted!).getTime());
   },
 
-  getCounts: () => {
+  getUrgent: () => {
+    return get().ecgs.filter(ecg => ecg.urgency === 'urgent' && ecg.status === 'pending' && !ecg.analyzedBy);
+  },
+
+  getCounts: (userEmail?) => {
     const ecgs = get().ecgs;
     const today = new Date().toDateString();
+    const available = ecgs.filter(e => e.status === 'pending' && !e.analyzedBy);
     return {
-      pending: ecgs.filter(e => e.status === 'pending').length,
-      urgent: ecgs.filter(e => e.urgency === 'urgent' && e.status !== 'completed').length,
-      inProgress: ecgs.filter(e => e.status === 'in_progress').length,
-      completed: ecgs.filter(e => e.status === 'completed').length,
-      today: ecgs.filter(e => e.status === 'completed' && new Date(e.dateCompleted!).toDateString() === today).length,
+      available: available.length,
+      urgent: available.filter(e => e.urgency === 'urgent').length,
+      myInProgress: userEmail ? ecgs.filter(e => e.status === 'in_progress' && e.analyzedBy === userEmail).length : 0,
+      myCompleted: userEmail ? ecgs.filter(e => e.status === 'completed' && e.analyzedBy === userEmail).length : 0,
+      today: userEmail
+        ? ecgs.filter(e => e.status === 'completed' && e.analyzedBy === userEmail && e.dateCompleted && new Date(e.dateCompleted).toDateString() === today).length
+        : 0,
     };
   },
 
@@ -415,13 +464,58 @@ export const useCardiologueStore = create<CardiologueStore>((set, get) => ({
     set({ currentECG: ecg });
   },
 
-  startAnalysis: (id) => {
+  startAnalysis: (id, userEmail, userName) => {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + ANALYSIS_TIMEOUT_MS);
     set(state => ({
       ecgs: state.ecgs.map(ecg =>
         ecg.id === id
-          ? { ...ecg, status: 'in_progress' as ECGStatus, dateStarted: new Date().toISOString() }
+          ? {
+              ...ecg,
+              status: 'in_progress' as ECGStatus,
+              dateStarted: now.toISOString(),
+              analyzedBy: userEmail,
+              analyzedByName: userName,
+              analysisDeadline: deadline.toISOString(),
+              extensionCount: 0,
+            }
           : ecg
       )
+    }));
+  },
+
+  releaseExpiredECGs: () => {
+    const now = Date.now();
+    set(state => ({
+      ecgs: state.ecgs.map(ecg => {
+        if (ecg.status !== 'in_progress') return ecg;
+        if (!ecg.analysisDeadline) return ecg;
+        if (new Date(ecg.analysisDeadline).getTime() > now) return ecg;
+        return {
+          ...ecg,
+          status: 'pending' as ECGStatus,
+          analyzedBy: undefined,
+          analyzedByName: undefined,
+          dateStarted: undefined,
+          analysisDeadline: undefined,
+          extensionCount: undefined,
+          draft: undefined,
+        };
+      }),
+    }));
+  },
+
+  requestTimeExtension: (id) => {
+    set(state => ({
+      ecgs: state.ecgs.map(ecg => {
+        if (ecg.id !== id || !ecg.analysisDeadline) return ecg;
+        const currentDeadline = new Date(ecg.analysisDeadline).getTime();
+        return {
+          ...ecg,
+          analysisDeadline: new Date(currentDeadline + EXTENSION_DURATION_MS).toISOString(),
+          extensionCount: (ecg.extensionCount ?? 0) + 1,
+        };
+      }),
     }));
   },
 
@@ -438,27 +532,46 @@ export const useCardiologueStore = create<CardiologueStore>((set, get) => ({
   saveInterpretation: (id, interpretation) => {
     set(state => ({
       ecgs: state.ecgs.map(ecg =>
-        ecg.id === id
-          ? { ...ecg, interpretation }
-          : ecg
+        ecg.id === id ? { ...ecg, interpretation } : ecg
       )
     }));
   },
 
-  completeAnalysis: (id, interpretation) => {
+  saveDraft: (id, draft) => {
     set(state => ({
       ecgs: state.ecgs.map(ecg =>
-        ecg.id === id
-          ? { 
-              ...ecg, 
-              status: 'completed' as ECGStatus, 
-              dateCompleted: new Date().toISOString(),
-              interpretation 
-            }
-          : ecg
+        ecg.id === id ? { ...ecg, draft } : ecg
       ),
-      currentECG: null
+      currentECG: state.currentECG?.id === id
+        ? { ...state.currentECG, draft }
+        : state.currentECG,
     }));
+  },
+
+  completeAnalysis: (id, interpretation) => {
+    const ecg = get().ecgs.find(e => e.id === id);
+    set(state => ({
+      ecgs: state.ecgs.map(e =>
+        e.id === id
+          ? {
+              ...e,
+              status: 'completed' as ECGStatus,
+              dateCompleted: new Date().toISOString(),
+              interpretation,
+            }
+          : e
+      ),
+      currentECG: null,
+    }));
+    // Notifier le médecin référent que le rapport est disponible
+    if (ecg) {
+      useNotificationStore.getState().pushNotification({
+        type: 'report_ready',
+        title: 'Rapport disponible',
+        message: `ECG de ${ecg.patientName} interprété — ${interpretation.isNormal ? 'ECG normal.' : '⚠ Anomalie détectée.'}`,
+        ecgId: id,
+      });
+    }
   },
 
   addNote: (id, note) => {

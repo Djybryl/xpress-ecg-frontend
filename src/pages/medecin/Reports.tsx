@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   Search,
-  Filter,
   Download,
   Eye,
   AlertCircle,
@@ -122,85 +121,83 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* En-tête */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Rapports reçus</h1>
-          <p className="text-gray-500">Consultez les interprétations de vos ECG</p>
+    <div className="space-y-3">
+      {/* En-tête compact */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-indigo-600" />
+            Rapports reçus
+          </h1>
+          {urgentUnreadCount > 0 && (
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 bg-red-100 border border-red-300 rounded-full text-xs font-semibold text-red-700 animate-pulse hover:bg-red-200 transition-colors"
+              onClick={() => setFilterStatus('unread')}
+            >
+              <AlertCircle className="h-3 w-3" />
+              {urgentUnreadCount} urgent{urgentUnreadCount > 1 ? 's' : ''} non lu{urgentUnreadCount > 1 ? 's' : ''}
+            </button>
+          )}
+          {unreadCount > 0 && (
+            <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 rounded-full text-xs font-medium text-amber-700">
+              {unreadCount} non lu{unreadCount > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-        
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
-            <Button variant="outline" onClick={markAllAsRead}>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Tout marquer comme lu
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={markAllAsRead}>
+              <CheckCircle className="h-3.5 w-3.5 mr-1.5" />Tout marquer lu
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Exporter
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                <Download className="h-3.5 w-3.5 mr-1.5" />Exporter
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                <FileText className="h-4 w-4 mr-2" />
-                Exporter en PDF
+                <FileText className="h-4 w-4 mr-2" />Exporter en PDF
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('excel')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Exporter en Excel
+                <FileSpreadsheet className="h-4 w-4 mr-2" />Exporter en Excel
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      {/* Alerte urgences */}
-      {urgentUnreadCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center animate-pulse">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-red-800">
-                {urgentUnreadCount} rapport{urgentUnreadCount > 1 ? 's' : ''} urgent{urgentUnreadCount > 1 ? 's' : ''} non lu{urgentUnreadCount > 1 ? 's' : ''}
-              </p>
-              <p className="text-sm text-red-600">
-                Veuillez consulter ces rapports en priorité
-              </p>
-            </div>
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={() => setFilterStatus('unread')}
-            >
-              Voir les urgences
-            </Button>
-          </div>
-        </div>
-      )}
-
-
       {/* Tableau des rapports */}
       <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="text-lg">Liste des rapports</CardTitle>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher un patient, ECG..."
-                  className="pl-9 w-[250px]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+        <CardHeader className="border-b p-0">
+          <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input
+                placeholder="Patient, ECG, conclusion…"
+                className="pl-8 h-8 text-xs w-52"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              />
             </div>
+            {[
+              { value: 'all',    label: 'Tous',     count: reports.length },
+              { value: 'unread', label: 'Non lus',  count: unreadCount },
+              { value: 'read',   label: 'Lus',      count: reports.length - unreadCount },
+            ].map(f => (
+              <button key={f.value}
+                onClick={() => { setFilterStatus(f.value as typeof filterStatus); setCurrentPage(1); }}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium transition-colors',
+                  filterStatus === f.value ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-600 hover:bg-gray-100'
+                )}
+              >
+                {f.label}
+                <span className={cn('text-[10px] rounded-full px-1', filterStatus === f.value ? 'bg-white/20' : 'bg-gray-200 text-gray-500')}>{f.count}</span>
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-gray-400">{filteredReports.length} rapport{filteredReports.length > 1 ? 's' : ''}</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -210,7 +207,7 @@ export function ReportsPage() {
                 <TableHead className="w-10"></TableHead>
                 <TableHead className="font-semibold">Patient</TableHead>
                 <TableHead className="font-semibold">ECG</TableHead>
-                <TableHead className="font-semibold">Date réception</TableHead>
+                <TableHead className="font-semibold">Rapport reçu</TableHead>
                 <TableHead className="font-semibold">Cardiologue</TableHead>
                 <TableHead className="font-semibold">Conclusion</TableHead>
                 <TableHead className="font-semibold text-center">Actions</TableHead>
