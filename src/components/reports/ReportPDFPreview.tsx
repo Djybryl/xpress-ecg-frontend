@@ -349,7 +349,6 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                           <g key={idx}>
                             <text x="4" y={trace.y - 22} fill="#6366f1" fontSize="10" fontWeight="700" fontFamily="monospace">{trace.label}</text>
                             <path d={trace.d} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d={trace.d.replace(/(\d+)/g, (_, n) => parseInt(n) <= 2 ? n : String(parseInt(n) + 350)} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                           </g>
                         ))}
                         <text x="660" y="440" fill="#94a3b8" fontSize="8" fontFamily="monospace">25mm/s | 10mm/mV</text>
