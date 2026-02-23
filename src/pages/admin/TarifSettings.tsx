@@ -124,11 +124,26 @@ export function TarifSettings() {
 
   return (
     <div className="space-y-3">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between h-11">
-        <div className="flex items-center gap-2">
-          <Settings className="h-4 w-4 text-indigo-600" />
-          <h1 className="text-base font-semibold text-slate-800">Paramètres Tarifaires</h1>
+      {/* En-tête + Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Settings className="h-5 w-5 text-indigo-600" />
+            Paramètres Tarifaires
+          </h1>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <DollarSign className="h-3 w-3" />
+            <span className="font-bold">{formatFCFA(localConfig.ecgCostPatient)}</span>
+            <span className="opacity-75">/ ECG</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <span className="font-bold">{localConfig.cardiologuePercent}%</span>
+            <span className="opacity-75">cardio</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700">
+            <span className="font-bold">{localConfig.medecinPercent}%</span>
+            <span className="opacity-75">médecin</span>
+          </span>
           {configHistory.length > 0 && (
             <p className="text-xs text-gray-400 mt-1">
               Dernière modification : {format(new Date(configHistory[0].timestamp), 'dd MMM yyyy à HH:mm', { locale: fr })} par {configHistory[0].userName}

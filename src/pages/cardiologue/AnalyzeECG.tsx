@@ -5,6 +5,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  PanelRightOpen,
+  PanelRightClose,
   User,
   Building2,
   Calendar,
@@ -66,6 +68,17 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { IMAGES } from '@/lib/constants';
+
+/** Ordre standard des 12 dérivations */
+const LEAD_ORDER = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'] as const;
+/** 6x2+1 : 6 lignes x 2 colonnes (périph. gauche, précord. droite) + bande DII */
+const LEAD_ORDER_6X2: [string, string][] = [
+  ['I', 'V1'], ['II', 'V2'], ['III', 'V3'], ['aVR', 'V4'], ['aVL', 'V5'], ['aVF', 'V6'],
+];
+
+/** Tracé ECG simulé — complexe PQRST réaliste (courbes lissées, type ECG classique) */
+const ECG_PQRST_PATH = "M0,25 Q12,25 20,23 Q28,24 35,25 L45,25 Q55,24 65,26 Q72,27 80,25 Q82,26 84,29 L86,33 Q87,31 88,26 L90,16 Q92,10 96,12 Q99,14 101,20 L103,30 Q105,27 108,25 L140,25 Q170,24 200,25 L260,25 Q275,23 290,25 Q302,27 312,25 L325,25 Q335,26 345,24 Q352,25 358,25 Q361,26 363,28 L365,32 Q366,30 368,26 L370,17 Q372,11 376,13 Q379,15 381,21 L383,30 Q385,27 388,25 L400,25";
 
 const quickPhrases = [
   { shortcut: '/rs', text: 'Rythme sinusal régulier' },
@@ -110,6 +123,11 @@ export function AnalyzeECG() {
   const [activeTool, setActiveTool] = useState<'move' | 'calipers'>('move');
   const [speed, setSpeed] = useState<25 | 50>(25);
   const [amplitude, setAmplitude] = useState<5 | 10 | 20>(10);
+  const [displayMode, setDisplayMode] = useState<'3x4' | '6x2' | '12x1'>('6x2');
+  const [filterLowPass, setFilterLowPass] = useState(false);
+  const [filterHighPass, setFilterHighPass] = useState(false);
+  const [filterNotch, setFilterNotch] = useState(false);
+  const [fcRulerActive, setFcRulerActive] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -126,17 +144,24 @@ export function AnalyzeECG() {
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [toolsPanelOpen, setToolsPanelOpen] = useState(true);
   
-  const [measurements, setMeasurements] = useState({
-    heartRate: ecg?.measurements?.heartRate || undefined as number | undefined,
-    prInterval: ecg?.measurements?.prInterval || undefined as number | undefined,
-    qrsDuration: ecg?.measurements?.qrsDuration || undefined as number | undefined,
-    qtInterval: ecg?.measurements?.qtInterval || undefined as number | undefined,
-    qtcInterval: ecg?.measurements?.qtcInterval || undefined as number | undefined,
-    pAxis: '' as string,
-    qrsAxis: '' as string,
-    tAxis: '' as string,
+  const [measurements, setMeasurements] = useState<{
+    heartRate?: number; prInterval?: number; qrsDuration?: number;
+    qtInterval?: number; qtcInterval?: number;
+    pAxis: string; qrsAxis: string; tAxis: string; rhythm: string;
+    sokolow?: number;
+  }>({
+    heartRate: ecg?.measurements?.heartRate || undefined,
+    prInterval: ecg?.measurements?.prInterval || undefined,
+    qrsDuration: ecg?.measurements?.qrsDuration || undefined,
+    qtInterval: ecg?.measurements?.qtInterval || undefined,
+    qtcInterval: ecg?.measurements?.qtcInterval || undefined,
+    pAxis: '',
+    qrsAxis: '',
+    tAxis: '',
     rhythm: ecg?.measurements?.rhythm || 'Sinusal',
+    sokolow: undefined,
   });
 
   const [interpretation, setInterpretation] = useState(ecg?.interpretation?.conclusion || '');
@@ -235,7 +260,7 @@ export function AnalyzeECG() {
       if (e.ctrlKey) {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -10 : 10;
-        setZoomLevel(prev => Math.max(50, Math.min(300, prev + delta)));
+        setZoomLevel(prev => Math.max(50, Math.min(400, prev + delta)));
       }
     };
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -453,8 +478,8 @@ export function AnalyzeECG() {
   }
 
   const ecgHeight = isPanelOpen 
-    ? `calc(100vh - 56px - 44px - ${panelHeight}px - 32px)` 
-    : 'calc(100vh - 56px - 44px - 32px - 40px)';
+    ? `calc(100vh - 56px - ${panelHeight}px - 32px)` 
+    : 'calc(100vh - 56px - 32px - 40px)';
 
   return (
     <div className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden">
@@ -596,150 +621,10 @@ export function AnalyzeECG() {
         </div>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="h-11 bg-white border-b flex items-center justify-between px-4 z-10">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 mr-1">Zoom:</span>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-7 w-7"
-              onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
-            >
-              <ZoomOut className="h-3.5 w-3.5" />
-            </Button>
-            <span className="text-sm font-medium w-14 text-center">{zoomLevel}%</span>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-7 w-7"
-              onClick={() => setZoomLevel(Math.min(300, zoomLevel + 10))}
-            >
-              <ZoomIn className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          <div className="h-6 w-px bg-gray-300" />
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 mr-1">Outils:</span>
-            <Button 
-              variant={activeTool === 'move' ? 'default' : 'outline'}
-              size="sm" 
-              className={cn(
-                "gap-1.5 h-7",
-                activeTool === 'move' && "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-              )}
-              onClick={() => setActiveTool('move')}
-            >
-              <Move className="h-3.5 w-3.5" />
-              Déplacer
-            </Button>
-            <Button 
-              variant={activeTool === 'calipers' ? 'default' : 'outline'}
-              size="sm" 
-              className={cn(
-                "gap-1.5 h-7",
-                activeTool === 'calipers' && "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-              )}
-              onClick={() => setActiveTool('calipers')}
-            >
-              <Ruler className="h-3.5 w-3.5" />
-              Calipers
-            </Button>
-          </div>
-
-          <div className="h-6 w-px bg-gray-300" />
-
-          <Button 
-            variant={gridVisible ? 'default' : 'outline'}
-            size="sm" 
-            className={cn(
-              "gap-1.5 h-7",
-              gridVisible && "bg-indigo-600 text-white hover:bg-indigo-700"
-            )}
-            onClick={() => setGridVisible(!gridVisible)}
-            title="Toggle grille (G)"
-          >
-            <Grid3X3 className="h-3.5 w-3.5" />
-            Grille
-          </Button>
-
-          <div className="h-6 w-px bg-gray-300" />
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 mr-1">Vitesse:</span>
-            <div className="flex rounded-md overflow-hidden border">
-              <button 
-                className={cn(
-                  "px-3 py-1 text-xs transition-colors",
-                  speed === 25 ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
-                )}
-                onClick={() => setSpeed(25)}
-              >
-                25 mm/s
-              </button>
-              <button 
-                className={cn(
-                  "px-3 py-1 text-xs transition-colors border-l",
-                  speed === 50 ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
-                )}
-                onClick={() => setSpeed(50)}
-              >
-                50 mm/s
-              </button>
-            </div>
-          </div>
-
-          <div className="h-6 w-px bg-gray-300" />
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 mr-1">Amplitude:</span>
-            <div className="flex rounded-md overflow-hidden border">
-              {[5, 10, 20].map((amp) => (
-                <button 
-                  key={amp}
-                  className={cn(
-                    "px-2.5 py-1 text-xs transition-colors",
-                    amp !== 5 && "border-l",
-                    amplitude === amp ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
-                  )}
-                  onClick={() => setAmplitude(amp as 5 | 10 | 20)}
-                >
-                  {amp}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-gray-500 ml-1">mm/mV</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {lastSaved && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 mr-2">
-              {isAutoSaving ? (
-                <>
-                  <Clock className="h-3.5 w-3.5 animate-spin" />
-                  <span>Enregistrement...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                  <span>Sauvegardé {format(lastSaved, 'HH:mm')}</span>
-                </>
-              )}
-            </div>
-          )}
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(100)}>
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7">
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
+      {/* ZONE ECG + BANDE LATÉRALE OUTILS */}
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Zone ECG (prend tout l'espace disponible) */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
       {/* MODE EXPRESS (affiché en overlay si actif) */}
       {expressMode && aiAnalysis && (
         <div className="absolute top-[110px] left-1/2 -translate-x-1/2 z-30 w-[600px]">
@@ -835,7 +720,7 @@ export function AnalyzeECG() {
         </div>
 
         <div 
-          className={cn("w-full h-full min-h-[400px] relative")}
+          className={cn("w-full h-full min-h-[400px] relative overflow-auto")}
           style={{
             background: gridVisible 
               ? `
@@ -847,33 +732,138 @@ export function AnalyzeECG() {
                 `
               : '#fff',
             backgroundSize: gridVisible 
-              ? '25mm 25mm, 25mm 25mm, 5mm 5mm, 5mm 5mm'
+              ? '25px 25px, 25px 25px, 5px 5px, 5px 5px'
               : 'auto',
           }}
         >
-          <div 
-            className="absolute inset-4 flex items-center justify-center"
-            style={{ 
-              transform: `scale(${zoomLevel / 100})`,
-              transformOrigin: 'center center'
-            }}
-          >
-            <div className="text-center text-gray-400">
-              <Activity className="h-20 w-20 mx-auto mb-4 text-blue-400" />
-              <p className="text-lg font-medium text-gray-600">Tracé ECG 12 dérivations</p>
-              <p className="text-sm mt-2">I, II, III, aVR, aVL, aVF, V1-V6</p>
-              <p className="text-xs mt-4 text-gray-400">
-                Vitesse: {speed} mm/s • Amplitude: {amplitude} mm/mV
-              </p>
-              <p className="text-xs mt-1 text-gray-400">
-                Ctrl + Scroll: zoom • [G]: grille • [Tab]: panel • [C]: comparer
-              </p>
-            </div>
+          <div className="p-4 w-full h-full">
+            {/* ECG : image unique (JPEG/PNG) ou grille 12 dérivations */}
+            {ecg?.ecgImageUrl ? (
+              <div style={{ transform: 'none' }}>
+                {/* Légende des dérivations (au-dessus de l'image) */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 px-3 mb-2 bg-slate-50 rounded border border-slate-200">
+                  <span className="text-[10px] text-slate-500 font-medium">Dérivations 12:</span>
+                  <span className="text-xs font-mono text-slate-700">
+                    I · II · III · aVR · aVL · aVF · V1 · V2 · V3 · V4 · V5 · V6
+                  </span>
+                </div>
+                <div 
+                  className="rounded border border-gray-200 bg-white overflow-hidden"
+                  style={{ contain: 'layout paint', minHeight: 200 }}
+                >
+                  <img
+                    key={ecg.ecgImageUrl}
+                    src={ecg.ecgImageUrl}
+                    alt="ECG 12 dérivations"
+                    loading="eager"
+                    decoding="sync"
+                    className="block w-full h-auto max-h-[70vh] object-contain bg-white"
+                    style={{ imageRendering: 'auto', verticalAlign: 'top' }}
+                    onError={(e) => {
+                      const el = e.target as HTMLImageElement;
+                      if (el.src !== IMAGES.ECG.FALLBACK) el.src = IMAGES.ECG.FALLBACK;
+                    }}
+                  />
+                </div>
+                {/* Bande dérivation longue DII — style papier */}
+                <div 
+                  className="mt-3 flex items-stretch min-h-[56px] bg-[#fafafa] rounded overflow-hidden"
+                  style={{
+                    backgroundImage: gridVisible ? 'linear-gradient(to right, #e5e5e5 1px, transparent 1px), linear-gradient(to bottom, #e5e5e5 1px, transparent 1px), linear-gradient(to right, #d4d4d4 1px, transparent 1px), linear-gradient(to bottom, #d4d4d4 1px, transparent 1px)' : 'none',
+                    backgroundSize: gridVisible ? '5px 5px, 5px 5px, 25px 25px, 25px 25px' : 'auto',
+                  }}
+                >
+                  <span className="w-16 flex-shrink-0 text-[10px] font-medium text-gray-600 pt-0.5 pl-1">DII long</span>
+                    <svg viewBox="0 0 800 50" className="flex-1 h-full min-h-[48px]" preserveAspectRatio="none">
+                      <path fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d="M0,25 Q15,25 30,22 Q45,24 60,25 Q75,26 90,25 Q100,27 105,32 Q108,28 112,25 Q130,25 Q160,24 200,25 L260,25 Q280,23 295,25 Q308,27 320,25 Q340,26 355,23 Q368,24 378,25 Q382,26 385,28 L388,32 Q390,30 393,25 L400,25 Q430,24 460,25 L520,25 Q540,23 555,25 Q568,27 580,25 Q600,26 615,23 Q628,24 638,25 Q642,26 645,28 L648,32 Q650,30 653,25 L660,25 Q690,24 720,25 L780,25 Q795,24 800,25" />
+                    </svg>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{ 
+                  transform: `scale(${zoomLevel / 100})`,
+                  transformOrigin: 'top left',
+                }}
+              >
+                {/* Tracé ECG type papier — sans encadrés, grille continue */}
+                <div
+                  className={cn(
+                    'rounded overflow-hidden',
+                    gridVisible && 'bg-[#fafafa]'
+                  )}
+                  style={{
+                    backgroundImage: gridVisible
+                      ? 'linear-gradient(to right, #e5e5e5 1px, transparent 1px), linear-gradient(to bottom, #e5e5e5 1px, transparent 1px), linear-gradient(to right, #d4d4d4 1px, transparent 1px), linear-gradient(to bottom, #d4d4d4 1px, transparent 1px)'
+                      : 'none',
+                    backgroundSize: gridVisible ? '5px 5px, 5px 5px, 25px 25px, 25px 25px' : 'auto',
+                  }}
+                >
+                  {/* Grille 12 dérivations — disposition réaliste sans encadrés */}
+                  <div
+                    className={cn(
+                      'grid gap-0',
+                      displayMode === '3x4' && 'grid-cols-3 grid-rows-4',
+                      displayMode === '6x2' && 'grid-cols-2 grid-rows-6',
+                      displayMode === '12x1' && 'grid-cols-12 grid-rows-1'
+                    )}
+                    style={{ minHeight: displayMode === '12x1' ? 48 : 140 }}
+                  >
+                    {displayMode === '6x2' ? (
+                      LEAD_ORDER_6X2.flatMap(([left, right]) => [
+                        <div key={left} className="flex items-stretch min-h-[52px]">
+                          <span className="w-8 flex-shrink-0 text-[10px] font-medium text-gray-600 pt-0.5 pl-1">{left}</span>
+                          <svg viewBox="0 0 400 50" className="flex-1 h-full" preserveAspectRatio="none">
+                            <path fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d={ECG_PQRST_PATH} />
+                          </svg>
+                        </div>,
+                        <div key={right} className="flex items-stretch min-h-[52px]">
+                          <span className="w-8 flex-shrink-0 text-[10px] font-medium text-gray-600 pt-0.5 pl-1">{right}</span>
+                          <svg viewBox="0 0 400 50" className="flex-1 h-full" preserveAspectRatio="none">
+                            <path fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d={ECG_PQRST_PATH} />
+                          </svg>
+                        </div>,
+                      ])
+                    ) : (
+                      LEAD_ORDER.map((lead) => (
+                        <div key={lead} className="flex items-stretch min-h-[48px]">
+                          <span className="w-7 flex-shrink-0 text-[10px] font-medium text-gray-600 pt-0.5 pl-0.5">{lead}</span>
+                          <svg viewBox="0 0 400 50" className="flex-1 h-full" preserveAspectRatio="none">
+                            <path fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d={ECG_PQRST_PATH} />
+                          </svg>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {/* Bande dérivation longue DII — même style papier, sans encadré */}
+                  <div className="mt-2 flex items-stretch min-h-[56px]" style={{ borderTop: gridVisible ? '1px solid #d4d4d4' : undefined }}>
+                    <span className="w-16 flex-shrink-0 text-[10px] font-medium text-gray-600 pt-0.5 pl-1">DII long</span>
+                    <svg viewBox="0 0 800 50" className="flex-1 h-full" preserveAspectRatio="none">
+                      <path fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" d="M0,25 Q15,25 30,22 Q45,24 60,25 Q75,26 85,25 Q88,27 90,29 L92,33 Q93,31 95,26 L97,16 Q99,10 103,12 Q106,14 108,20 L110,30 Q112,27 115,25 L180,25 Q220,24 260,25 L330,25 Q345,24 360,25 Q372,26 382,25 Q385,27 387,29 L389,33 Q390,31 392,26 L394,16 Q396,10 400,12 Q403,14 405,20 L407,30 Q409,27 412,25 L480,25 Q520,24 560,25 L630,25 Q645,24 660,25 Q672,26 682,25 Q685,27 687,29 L689,33 Q690,31 692,26 L694,16 Q696,10 700,12 Q703,14 705,20 L707,30 Q709,27 712,25 L780,25 Q795,24 800,25" />
+                    </svg>
+                  </div>
+                </div>
+                {(filterLowPass || filterHighPass || filterNotch) && (
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Filtres: {[filterLowPass && '40Hz', filterHighPass && '0.05Hz', filterNotch && 'Notch'].filter(Boolean).join(' ')}
+                  </p>
+                )}
+              </div>
+            )}
+            {fcRulerActive && (
+              <div className="mt-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-800 flex items-center gap-2">
+                <Heart className="h-4 w-4 flex-shrink-0" />
+                <span><strong>Règle FC:</strong> mesurez l’intervalle RR (en mm ou ms), FC = 60 000 / RR(ms) ou 300 / nombre de grands carreaux entre deux R.</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-2">
+              Vitesse: {speed} mm/s • Amplitude: {amplitude} mm/mV • Ctrl+Scroll: zoom • [G]: grille
+            </p>
           </div>
 
           <div className="absolute bottom-4 left-4 flex items-end gap-1">
-            <span className="text-xs text-gray-500">1mV</span>
-            <div className="w-4 h-10 border-l-2 border-b-2 border-gray-400"></div>
+            <span className="text-xs text-gray-500">1 mV</span>
+            <div className="w-4 h-10 border-l-2 border-b-2 border-gray-400" />
           </div>
         </div>
       </div>
@@ -1218,6 +1208,99 @@ Utilisez les raccourcis:
         </div>
       </div>
 
+        </div>
+
+        {/* Bande latérale outils (rétractable) */}
+        {toolsPanelOpen ? (
+          <div className="w-[220px] flex-shrink-0 bg-white border-l flex flex-col overflow-y-auto">
+            <div className="p-3 border-b flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">Outils ECG</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setToolsPanelOpen(false)} title="Rétracter">
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-3 space-y-4 text-sm">
+              <div>
+                <span className="text-xs text-gray-500 block mb-1.5">Échelles</span>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[10px] text-gray-500">Vitesse</span>
+                    <div className="flex rounded border overflow-hidden mt-0.5">
+                      {([25, 50] as const).map((s) => (
+                        <button key={s} className={cn("flex-1 py-1.5 text-xs", speed === s ? "bg-indigo-600 text-white" : "bg-white hover:bg-gray-50")} onClick={() => setSpeed(s)}>{s} mm/s</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500">Amplitude</span>
+                    <div className="flex rounded border overflow-hidden mt-0.5">
+                      {[5, 10, 20].map((amp) => (
+                        <button key={amp} className={cn("flex-1 py-1.5 text-xs", amplitude === amp ? "bg-indigo-600 text-white" : "bg-white hover:bg-gray-50")} onClick={() => setAmplitude(amp as 5 | 10 | 20)}>{amp}</button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-gray-400">mm/mV</span>
+                  </div>
+                </div>
+              </div>
+              {!ecg?.ecgImageUrl && (
+                <div>
+                  <span className="text-xs text-gray-500 block mb-1.5">Disposition</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(['3x4', '6x2', '12x1'] as const).map((mode) => (
+                      <button key={mode} className={cn("px-2 py-1 text-xs rounded border", displayMode === mode ? "bg-indigo-600 text-white border-indigo-600" : "bg-white")} onClick={() => setDisplayMode(mode)}>{mode}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <span className="text-xs text-gray-500 block mb-1.5">Zoom</span>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}><ZoomOut className="h-3.5 w-3.5" /></Button>
+                  <span className="flex-1 text-center text-xs font-medium">{zoomLevel}%</span>
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoomLevel(Math.min(400, zoomLevel + 10))}><ZoomIn className="h-3.5 w-3.5" /></Button>
+                </div>
+                <Button variant="ghost" size="sm" className="w-full mt-1 h-7 text-xs" onClick={() => setZoomLevel(100)}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                </Button>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500 block mb-1.5">Outils</span>
+                <div className="flex gap-1">
+                  <Button variant={activeTool === 'move' ? 'default' : 'outline'} size="sm" className="flex-1 h-7 text-xs" onClick={() => setActiveTool('move')}><Move className="h-3 w-3" /></Button>
+                  <Button variant={activeTool === 'calipers' ? 'default' : 'outline'} size="sm" className="flex-1 h-7 text-xs" onClick={() => setActiveTool('calipers')}><Ruler className="h-3 w-3" /></Button>
+                </div>
+              </div>
+              <Button variant={gridVisible ? 'default' : 'outline'} size="sm" className="w-full h-7 text-xs" onClick={() => setGridVisible(!gridVisible)}>
+                <Grid3X3 className="h-3 w-3 mr-1" /> Grille
+              </Button>
+              <div>
+                <span className="text-xs text-gray-500 block mb-1.5">Filtres</span>
+                <div className="flex flex-wrap gap-1">
+                  <Button variant={filterLowPass ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setFilterLowPass(!filterLowPass)}>40Hz</Button>
+                  <Button variant={filterHighPass ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setFilterHighPass(!filterHighPass)}>0.05Hz</Button>
+                  <Button variant={filterNotch ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setFilterNotch(!filterNotch)}>Notch</Button>
+                </div>
+              </div>
+              <Button variant={fcRulerActive ? 'default' : 'outline'} size="sm" className="w-full h-7 text-xs" onClick={() => setFcRulerActive(!fcRulerActive)}>
+                <Heart className="h-3 w-3 mr-1" /> Règle FC
+              </Button>
+            </div>
+            {(lastSaved || isAutoSaving) && (
+              <div className="p-2 border-t mt-auto text-xs text-gray-500 flex items-center gap-1.5">
+                {isAutoSaving ? <Clock className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />}
+                {isAutoSaving ? 'Enregistrement...' : `Sauvegardé ${lastSaved ? format(lastSaved, 'HH:mm') : ''}`}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="w-10 flex-shrink-0 bg-white border-l flex flex-col items-center py-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setToolsPanelOpen(true)} title="Ouvrir les outils">
+              <PanelRightOpen className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
       {/* DIALOG CONFIRMATION */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1371,7 +1454,7 @@ Utilisez les raccourcis:
                       { label: 'Intervalle PR', unit: 'ms', current: measurements.prInterval, previous: selectedPrevious.measurements.prInterval, key: 'prInterval' },
                       { label: 'Durée QRS', unit: 'ms', current: measurements.qrsDuration, previous: selectedPrevious.measurements.qrsDuration, key: 'qrsDuration' },
                       { label: 'Intervalle QT', unit: 'ms', current: measurements.qtInterval, previous: selectedPrevious.measurements.qtInterval, key: 'qtInterval' },
-                      { label: 'QTc', unit: 'ms', current: measurements.qtc, previous: selectedPrevious.measurements.qtc, key: 'qtc' },
+                      { label: 'QTc', unit: 'ms', current: measurements.qtcInterval, previous: selectedPrevious.measurements.qtc, key: 'qtc' },
                       { label: 'Axe P', unit: '°', current: measurements.pAxis, previous: selectedPrevious.measurements.pAxis, key: 'pAxis' },
                       { label: 'Axe QRS', unit: '°', current: measurements.qrsAxis, previous: selectedPrevious.measurements.qrsAxis, key: 'qrsAxis' },
                       { label: 'Axe T', unit: '°', current: measurements.tAxis, previous: selectedPrevious.measurements.tAxis, key: 'tAxis' },

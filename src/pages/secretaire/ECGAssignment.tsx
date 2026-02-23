@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   UserCog, 
   Search, 
@@ -55,7 +55,9 @@ export function ECGAssignment() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const PAGE_SIZE = 10;
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedCardiologist, setSelectedCardiologist] = useState<string>('');
@@ -80,6 +82,10 @@ export function ECGAssignment() {
     if (a.urgency !== 'urgent' && b.urgency === 'urgent') return 1;
     return new Date(a.dateValidated || a.dateReceived).getTime() - new Date(b.dateValidated || b.dateReceived).getTime();
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
+  const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => { setPage(1); }, [searchTerm, urgencyFilter]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -162,132 +168,68 @@ export function ECGAssignment() {
     });
   };
 
+  const [autoAssignConfirm, setAutoAssignConfirm] = useState(false);
+
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <UserCog className="h-6 w-6 text-indigo-600" />
-            Assignation ECG
-          </h1>
-          <p className="text-gray-500 mt-1">Assignez les ECG validés aux cardiologues pour interprétation</p>
-        </div>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <UserCog className="h-5 w-5 text-indigo-600" />
+          Assignation ECG
+          {counts.validated > 0 && <Badge variant="secondary" className="text-xs">{counts.validated}</Badge>}
+        </h1>
         <Button 
-          onClick={handleAutoAssign}
+          onClick={() => setAutoAssignConfirm(true)}
           disabled={filteredECGs.length === 0}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600"
+          size="sm"
+          className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
         >
-          <Zap className="h-4 w-4 mr-2" />
+          <Zap className="h-3.5 w-3.5 mr-1.5" />
           Auto-assignation
         </Button>
       </div>
 
-      {/* Liste des cardiologues - Pleine largeur */}
-      <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-600" />
-              Cardiologues disponibles
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {cardiologists.map(cardio => (
-                <div 
-                  key={cardio.id}
-                  className={cn(
-                    "p-4 rounded-lg border-2 transition-all",
-                    cardio.available 
-                      ? "border-green-200 bg-green-50" 
-                      : "border-gray-200 bg-gray-50 opacity-60"
-                  )}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "h-10 w-10 rounded-full flex items-center justify-center",
-                        cardio.available ? "bg-green-200" : "bg-gray-200"
-                      )}>
-                        <User className={cn(
-                          "h-5 w-5",
-                          cardio.available ? "text-green-700" : "text-gray-500"
-                        )} />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{cardio.name}</p>
-                        <p className="text-xs text-gray-500">{cardio.specialty}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <Badge variant={cardio.available ? "default" : "secondary"}>
-                      {cardio.available ? 'Disponible' : 'Occupé'}
-                    </Badge>
-                    <span className="text-xs text-gray-500">
-                      {cardio.currentLoad} ECG en cours
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-      </Card>
-
-      {/* Filtres et actions */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher patient, ID, médecin..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Urgence" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes</SelectItem>
-                  <SelectItem value="urgent">Urgents</SelectItem>
-                  <SelectItem value="normal">Normaux</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedItems.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">
-                  {selectedItems.length} sélectionné(s)
-                </span>
-                <Button 
-                  onClick={() => openAssignDialog(selectedItems)}
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                >
-                  <UserCog className="h-4 w-4 mr-2" />
-                  Assigner la sélection
-                </Button>
-              </div>
+      {/* Pills cardiologues */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {cardiologists.map(cardio => (
+          <div
+            key={cardio.id}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium",
+              cardio.available ? "border-green-300 text-green-700 bg-green-50" : "border-gray-200 text-gray-500 bg-gray-50"
             )}
+          >
+            <User className="h-3 w-3" />
+            <span>{cardio.name}</span>
+            <span className="opacity-75">({cardio.currentLoad})</span>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
 
-      {/* Liste des ECG à assigner */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            ECG à assigner
-            {counts.validated > 0 && (
-              <Badge variant="secondary" className="ml-2">{counts.validated}</Badge>
+        <CardHeader className="border-b p-0">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input placeholder="Patient, ID, médecin…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs w-48" />
+            </div>
+            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+              <SelectTrigger className="h-8 w-28 text-xs">
+                <SelectValue placeholder="Urgence" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes</SelectItem>
+                <SelectItem value="urgent">Urgents</SelectItem>
+                <SelectItem value="normal">Normaux</SelectItem>
+              </SelectContent>
+            </Select>
+            {selectedItems.length > 0 && (
+              <Button onClick={() => openAssignDialog(selectedItems)} size="sm" className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 ml-auto">
+                <UserCog className="h-3.5 w-3.5 mr-1.5" />Assigner ({selectedItems.length})
+              </Button>
             )}
-          </CardTitle>
+            <span className="ml-auto text-xs text-gray-400">{filteredECGs.length} ECG</span>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {filteredECGs.length === 0 ? (
@@ -316,7 +258,7 @@ export function ECGAssignment() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredECGs.map((ecg) => (
+                {paginatedECGs.map((ecg) => (
                   <>
                     <TableRow 
                       key={ecg.id}
@@ -460,6 +402,20 @@ export function ECGAssignment() {
               </TableBody>
             </Table>
           )}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t text-xs text-gray-500">
+              <span>{filteredECGs.length} résultat{filteredECGs.length > 1 ? 's' : ''} • page {page}/{totalPages}</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => Math.max(1, Math.min(page - 2, totalPages - 4)) + i).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" className={cn('h-6 w-6 p-0 text-xs', p === page && 'bg-indigo-600 text-white')} onClick={() => setPage(p)}>{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -523,6 +479,22 @@ export function ECGAssignment() {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog confirmation auto-assignation */}
+      <Dialog open={autoAssignConfirm} onOpenChange={setAutoAssignConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Auto-assignation</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Assigner les {filteredECGs.length} ECG à l'équilibre de charge (cardiologue le moins chargé) ?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutoAssignConfirm(false)}>Annuler</Button>
+            <Button onClick={() => { handleAutoAssign(); setAutoAssignConfirm(false); }}>Confirmer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog d'assignation */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>

@@ -57,7 +57,9 @@ export function ECGInbox() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const PAGE_SIZE = 10;
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<ECGQueueItem | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -77,11 +79,15 @@ export function ECGInbox() {
     const matchesUrgency = urgencyFilter === 'all' || ecg.urgency === urgencyFilter;
     return matchesSearch && matchesUrgency;
   }).sort((a, b) => {
-    // Trier par urgence d'abord, puis par date
     if (a.urgency === 'urgent' && b.urgency !== 'urgent') return -1;
     if (a.urgency !== 'urgent' && b.urgency === 'urgent') return 1;
     return new Date(b.dateReceived).getTime() - new Date(a.dateReceived).getTime();
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
+  const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => { setPage(1); }, [searchTerm, urgencyFilter]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -136,76 +142,42 @@ export function ECGInbox() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Inbox className="h-6 w-6 text-indigo-600" />
-            Réception ECG
-          </h1>
-          <p className="text-gray-500 mt-1">Validez les ECG entrants avant assignation aux cardiologues</p>
-        </div>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Actualiser
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Inbox className="h-5 w-5 text-indigo-600" />
+          Réception ECG
+          {counts.received > 0 && <Badge variant="secondary" className="text-xs">{counts.received}</Badge>}
+        </h1>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => window.location.reload()} title="Actualiser">
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Filtres et actions */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher patient, ID, médecin..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Urgence" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes</SelectItem>
-                  <SelectItem value="urgent">Urgents</SelectItem>
-                  <SelectItem value="normal">Normaux</SelectItem>
-                </SelectContent>
-              </Select>
+        <CardHeader className="border-b p-0">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input placeholder="Patient, ID, médecin…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs w-48" />
             </div>
-
+            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+              <SelectTrigger className="h-8 w-28 text-xs">
+                <SelectValue placeholder="Urgence" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes</SelectItem>
+                <SelectItem value="urgent">Urgents</SelectItem>
+                <SelectItem value="normal">Normaux</SelectItem>
+              </SelectContent>
+            </Select>
             {selectedItems.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">
-                  {selectedItems.length} sélectionné(s)
-                </span>
-                <Button 
-                  onClick={handleBulkValidate}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Valider la sélection
-                </Button>
-              </div>
+              <Button onClick={handleBulkValidate} size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto">
+                <Check className="h-3.5 w-3.5 mr-1.5" />Valider ({selectedItems.length})
+              </Button>
             )}
+            <span className="ml-auto text-xs text-gray-400">{filteredECGs.length} ECG</span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Liste des ECG */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            ECG en attente de validation
-            {counts.received > 0 && (
-              <Badge variant="secondary" className="ml-2">{counts.received}</Badge>
-            )}
-          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {filteredECGs.length === 0 ? (
@@ -234,7 +206,7 @@ export function ECGInbox() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredECGs.map((ecg) => (
+                {paginatedECGs.map((ecg) => (
                   <>
                     <TableRow 
                       key={ecg.id}
@@ -392,6 +364,20 @@ export function ECGInbox() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t text-xs text-gray-500">
+              <span>{filteredECGs.length} résultat{filteredECGs.length > 1 ? 's' : ''} • page {page}/{totalPages}</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => Math.max(1, Math.min(page - 2, totalPages - 4)) + i).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" className={cn('h-6 w-6 p-0 text-xs', p === page && 'bg-indigo-600 text-white')} onClick={() => setPage(p)}>{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

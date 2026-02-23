@@ -66,6 +66,8 @@ export interface CardiologueECG {
   // Brouillon auto-sauvegardé
   draft?: ECGDraft;
   notes?: string;
+  /** URL de l'image ECG (JPEG/PNG) — une seule image pour l'ensemble des 12 dérivations */
+  ecgImageUrl?: string;
 }
 
 // Données mockées pour le cardiologue
@@ -86,6 +88,7 @@ const mockCardiologueECGs: CardiologueECG[] = [
     urgency: 'urgent',
     clinicalContext: 'Douleur thoracique aiguë irradiant vers le bras gauche, dyspnée',
     ecgDate: '2024-12-25',
+    ecgImageUrl: '/placeholder-ecg.png',
   },
   {
     id: 'ECG-2024-0429',
@@ -202,7 +205,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
       conclusion: 'ECG strictement normal. Pas de signe électrique en faveur d\'une ischémie myocardique.',
       recommendations: 'Pas de surveillance ECG particulière nécessaire.',
       isNormal: true
-    }
+    },
+    ecgImageUrl: '/placeholder-ecg.png',
   },
   {
     id: 'ECG-2024-0424',
@@ -244,7 +248,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
       conclusion: 'ECG anormal : Bloc de branche gauche complet avec QTc allongé. Signes évoquant une cardiopathie sous-jacente.',
       recommendations: 'Échocardiographie recommandée. Surveillance du QTc. Revue des médicaments allongeant le QT.',
       isNormal: false
-    }
+    },
+    ecgImageUrl: '/placeholder-ecg.png',
   },
   {
     id: 'ECG-2024-0423',
@@ -284,7 +289,8 @@ const mockCardiologueECGs: CardiologueECG[] = [
       conclusion: 'ECG normal compatible avec la pratique sportive. Bradycardie sinusale physiologique.',
       recommendations: 'Aptitude au sport confirmée.',
       isNormal: true
-    }
+    },
+    ecgImageUrl: '/placeholder-ecg.png',
   },
 ];
 

@@ -139,119 +139,90 @@ export function ActivityLogs() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Activity className="h-6 w-6 text-indigo-600" />
+    <div className="space-y-3">
+      {/* En-tête + Pills + Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-indigo-600" />
             Journaux d'activité
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Audit complet de toutes les actions sur la plateforme
-          </p>
+          {(Object.entries(typeConfig) as [ActivityLog['type'], typeof typeConfig[ActivityLog['type']]][]).map(([type, cfg]) => {
+            const Icon = cfg.icon;
+            return (
+              <button
+                key={type}
+                onClick={() => setTypeFilter(prev => prev === type ? 'all' : type)}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium transition-colors",
+                  cfg.className,
+                  typeFilter === type && "ring-2 ring-offset-1 ring-indigo-500"
+                )}
+              >
+                <Icon className="h-3 w-3" />
+                <span className="font-bold">{counts[type]}</span>
+                <span className="opacity-75">{cfg.label}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleSimulate}>
-            + Simuler
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleSimulate}>+ Simuler</Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExport}>
+            <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" /> Exporter CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isRefreshing && "animate-spin")} />
             Actualiser
           </Button>
         </div>
       </div>
 
-      {/* Métriques */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {(Object.entries(typeConfig) as [ActivityLog['type'], typeof typeConfig[ActivityLog['type']]][]).map(([type, cfg]) => {
-          const Icon = cfg.icon;
-          return (
-            <Card
-              key={type}
-              className={cn("cursor-pointer border transition-all hover:shadow-md", typeFilter === type ? 'ring-2 ring-indigo-500' : '')}
-              onClick={() => setTypeFilter(prev => prev === type ? 'all' : type)}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={cn("p-2 rounded-lg border", cfg.className)}>
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">{cfg.label}</p>
-                  <p className="text-lg font-bold">{counts[type]}</p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Filtres */}
+      {/* Card unique avec filtres + liste */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher par utilisateur, action, détails…"
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="pl-9"
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={v => { setTypeFilter(v as LogType); setPage(1); }}>
-              <SelectTrigger className="w-36">
-                <Filter className="h-4 w-4 mr-2 text-gray-400" />
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="success">Succès</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Alerte</SelectItem>
-                <SelectItem value="error">Erreur</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={dateRange} onValueChange={v => { setDateRange(v as DateRange); setPage(1); }}>
-              <SelectTrigger className="w-36">
-                <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Aujourd'hui</SelectItem>
-                <SelectItem value="yesterday">Hier</SelectItem>
-                <SelectItem value="7days">7 derniers jours</SelectItem>
-                <SelectItem value="30days">30 derniers jours</SelectItem>
-                <SelectItem value="all">Tout l'historique</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex flex-wrap gap-2 px-3 py-2 border-b bg-gray-50">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              placeholder="Rechercher…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="pl-8 h-8 w-48 text-xs"
+            />
           </div>
+          <Select value={typeFilter} onValueChange={v => { setTypeFilter(v as LogType); setPage(1); }}>
+            <SelectTrigger className="w-32 h-8 text-xs">
+              <Filter className="h-3.5 w-3.5 mr-1" />
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous</SelectItem>
+              <SelectItem value="success">Succès</SelectItem>
+              <SelectItem value="info">Info</SelectItem>
+              <SelectItem value="warning">Alerte</SelectItem>
+              <SelectItem value="error">Erreur</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={v => { setDateRange(v as DateRange); setPage(1); }}>
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <Calendar className="h-3.5 w-3.5 mr-1" />
+              <SelectValue placeholder="Période" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Aujourd'hui</SelectItem>
+              <SelectItem value="yesterday">Hier</SelectItem>
+              <SelectItem value="7days">7 jours</SelectItem>
+              <SelectItem value="30days">30 jours</SelectItem>
+              <SelectItem value="all">Tout</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="ml-auto text-xs text-gray-400">{filtered.length} entrée{filtered.length !== 1 ? 's' : ''}</span>
           {(typeFilter !== 'all' || dateRange !== '7days' || search) && (
-            <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
-              <span>{filtered.length} résultat{filtered.length !== 1 ? 's' : ''}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-xs px-2"
-                onClick={() => { setSearch(''); setTypeFilter('all'); setDateRange('7days'); setPage(1); }}
-              >
-                Réinitialiser les filtres
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setSearch(''); setTypeFilter('all'); setDateRange('7days'); setPage(1); }}>
+              Réinitialiser
+            </Button>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Liste des logs */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-gray-700">
-            Entrées ({filtered.length})
-          </CardTitle>
-        </CardHeader>
+        </div>
         <CardContent className="p-0">
           {paginated.length === 0 ? (
             <div className="py-16 text-center text-gray-400">

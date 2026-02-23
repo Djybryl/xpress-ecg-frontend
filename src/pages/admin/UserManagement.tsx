@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Search, 
-  Filter,
   Plus,
+  ChevronLeft,
+  ChevronRight,
   Edit,
   Trash2,
   MoreVertical,
@@ -93,6 +94,7 @@ export function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,6 +140,14 @@ export function UserManagement() {
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const paginatedUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const activeCount = users.filter(u => u.status === 'active').length;
+  const pendingCount = users.filter(u => u.status === 'pending').length;
+  const inactiveCount = users.filter(u => u.status === 'inactive').length;
 
   const handleOpenNew = () => {
     setIsNewUser(true);
@@ -206,6 +216,8 @@ export function UserManagement() {
     setSelectedUser(null);
   };
 
+  useEffect(() => { setPage(1); }, [searchTerm, roleFilter, statusFilter]);
+
   const handleToggleStatus = (user: SystemUser) => {
     if (user.status === 'active') {
       deactivateUser(user.id);
@@ -224,14 +236,35 @@ export function UserManagement() {
 
   return (
     <div className="space-y-3">
-      {/* En-tête + Filtres inline compact */}
-      <div className="flex items-center justify-between h-11">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-indigo-600" />
-          <h1 className="text-base font-semibold text-slate-800">Utilisateurs</h1>
-          <span className="text-[10px] text-slate-400">({filteredUsers.length})</span>
+      {/* En-tête + Pills + Filtres */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Users className="h-5 w-5 text-indigo-600" />
+            Utilisateurs
+          </h1>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <span className="font-bold">{users.length}</span>
+            <span className="opacity-75">total</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
+            <span className="font-bold">{activeCount}</span>
+            <span className="opacity-75">actifs</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700">
+            <span className="font-bold">{pendingCount}</span>
+            <span className="opacity-75">attente</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700">
+            <span className="font-bold">{inactiveCount}</span>
+            <span className="opacity-75">inactifs</span>
+          </span>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* Table utilisateurs */}
+      <Card>
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <Input
@@ -265,15 +298,12 @@ export function UserManagement() {
               <SelectItem value="inactive">Inactifs</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8" title="Ctrl+N">
+          <span className="ml-auto text-xs text-gray-400">{filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}</span>
+          <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" title="Ctrl+N">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Nouveau
           </Button>
         </div>
-      </div>
-
-      {/* Table utilisateurs */}
-      <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-slate-50 h-9">
@@ -295,7 +325,7 @@ export function UserManagement() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <TableRow key={user.id} className="hover:bg-gray-50">
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -403,6 +433,19 @@ export function UserManagement() {
               )}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-1 py-2 border-t">
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(1)} title="Première page">«</Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs text-slate-500 px-2">{page} / {totalPages}</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(totalPages)} title="Dernière page">»</Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

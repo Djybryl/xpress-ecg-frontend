@@ -4,9 +4,7 @@ import {
   Users,
   Building2,
   Activity,
-  TrendingUp,
   Clock,
-  AlertTriangle,
   CheckCircle2,
   ChevronRight,
   UserPlus,
@@ -16,9 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { useAdminStore, roleLabels, roleColors, statusColors } from '@/stores/useAdminStore';
+import { useAdminStore } from '@/stores/useAdminStore';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -34,136 +30,88 @@ export function AdminDashboard() {
   // Logs récents
   const recentLogs = logs.slice(0, 5);
 
+  const cardioCount = users.filter(u => u.role === 'cardiologue').length;
+  const medecinCount = users.filter(u => u.role === 'medecin').length;
+  const secretaireCount = users.filter(u => u.role === 'secretaire').length;
+  const adminCount = users.filter(u => u.role === 'admin').length;
+
   return (
     <div className="space-y-3">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between h-11">
+      {/* En-tête compact + pills stats + actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <LayoutDashboard className="h-5 w-5 text-indigo-600" />
+            Administration
+          </h1>
+          <span className="text-xs text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded">
+            {format(new Date(), "d MMM yyyy", { locale: fr })}
+          </span>
+          {pendingUsers.length > 0 && (
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 rounded-full text-xs font-semibold text-amber-700 hover:bg-amber-200 transition-colors"
+              onClick={() => navigate('/admin/users')}
+            >
+              <UserPlus className="h-3 w-3" />
+              {pendingUsers.length} en attente
+            </button>
+          )}
+          <button onClick={() => navigate('/admin/users')} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <Users className="h-3 w-3" />
+            <span className="font-bold">{stats.totalUsers}</span>
+            <span className="opacity-75">utilisateurs</span>
+          </button>
+          <button onClick={() => navigate('/admin/hospitals')} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <Building2 className="h-3 w-3" />
+            <span className="font-bold">{stats.totalHospitals}</span>
+            <span className="opacity-75">établissements</span>
+          </button>
+          <button onClick={() => navigate('/admin/statistics')} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700">
+            <Activity className="h-3 w-3" />
+            <span className="font-bold">{stats.ecgThisMonth}</span>
+            <span className="opacity-75">ECG mois</span>
+          </button>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-violet-200 bg-violet-50 text-xs font-medium text-violet-700">
+            <Clock className="h-3 w-3" />
+            <span className="font-bold">{stats.avgResponseTime}</span>
+            <span className="opacity-75">réponse</span>
+          </span>
+        </div>
         <div className="flex items-center gap-2">
-          <LayoutDashboard className="h-4 w-4 text-indigo-600" />
-          <h1 className="text-base font-semibold text-slate-800">Administration</h1>
-          <span className="text-[10px] text-slate-400">Vue système Xpress-ECG</span>
-        </div>
-        <div className="text-[10px] text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded">
-          {format(new Date(), "EEE d MMM yyyy", { locale: fr })}
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/admin/users')}>
+            <Users className="h-3.5 w-3.5 mr-1.5" />Utilisateurs
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/admin/hospitals')}>
+            <Building2 className="h-3.5 w-3.5 mr-1.5" />Établissements
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/admin/statistics')}>
+            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />Statistiques
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/admin/settings')}>
+            <Settings className="h-3.5 w-3.5 mr-1.5" />Paramètres
+          </Button>
         </div>
       </div>
 
-      {/* Alertes */}
-      {pendingUsers.length > 0 && (
-        <Card className="border-amber-200/60 bg-gradient-to-r from-amber-50/80 to-amber-50/30">
-          <CardContent className="p-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <UserPlus className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-amber-800">
-                    {pendingUsers.length} inscription(s) en attente
-                  </h3>
-                  <p className="text-xs text-amber-600">
-                    Nécessite votre validation
-                  </p>
-                </div>
-              </div>
-              <Button 
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs border-amber-300/70 text-amber-700 hover:bg-amber-100"
-                onClick={() => navigate('/admin/users')}
-              >
-                Voir les demandes
-                <ChevronRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Statistiques principales - COMPACT */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Card 
-          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
-          onClick={() => navigate('/admin/users')}
-        >
-          <CardContent className="p-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 bg-indigo-100 rounded flex items-center justify-center flex-shrink-0">
-                <Users className="h-4 w-4 text-indigo-700" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-500 leading-tight">Utilisateurs</p>
-                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.totalUsers}</p>
-              </div>
-              <p className="text-[9px] text-slate-400">{stats.activeUsers} actifs</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
-          onClick={() => navigate('/admin/hospitals')}
-        >
-          <CardContent className="p-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-4 w-4 text-emerald-700" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-500 leading-tight">Établissements</p>
-                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.totalHospitals}</p>
-              </div>
-              <p className="text-[9px] text-slate-400">{stats.activeHospitals} actifs</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="cursor-pointer hover:shadow-sm transition-all duration-200 bg-slate-50 hover:bg-slate-100 border-slate-200"
-          onClick={() => navigate('/admin/statistics')}
-        >
-          <CardContent className="p-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-                <Activity className="h-4 w-4 text-blue-700" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-500 leading-tight">ECG mois</p>
-                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.ecgThisMonth}</p>
-              </div>
-              <p className="text-[9px] text-slate-400">{stats.ecgToday} auj.</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-50 hover:bg-slate-100 border-slate-200">
-          <CardContent className="p-2">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 bg-violet-100 rounded flex items-center justify-center flex-shrink-0">
-                <Clock className="h-4 w-4 text-violet-700" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-500 leading-tight">Temps moy.</p>
-                <p className="text-lg font-bold text-slate-800 leading-tight">{stats.avgResponseTime}</p>
-              </div>
-              <p className="text-[9px] text-slate-400">réponse</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Répartition rôles (pills) */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-slate-500 font-medium">Rôles :</span>
+        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-xs">{cardioCount} cardio</span>
+        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs">{medecinCount} médecins</span>
+        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-xs">{secretaireCount} secrét.</span>
+        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">{adminCount} admin</span>
+        <span className="px-2 py-0.5 rounded bg-green-50 text-green-700 text-xs">{stats.normalECGPercent}% ECG normaux</span>
       </div>
 
-      {/* Contenu principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Activité récente */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-600" />
+      {/* Activité récente */}
+      <Card>
+          <CardHeader className="flex flex-row items-center justify-between py-2 px-4 border-b">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4 text-indigo-600" />
               Activité récente
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/admin/logs')}>
-              Voir tout
-              <ChevronRight className="h-4 w-4 ml-1" />
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/admin/logs')}>
+              Voir tout <ChevronRight className="h-3 w-3 ml-1" />
             </Button>
           </CardHeader>
           <CardContent>
@@ -206,129 +154,6 @@ export function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Statistiques rapides */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
-              Vue rapide
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* ECG Normaux vs Anormaux */}
-            <div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600">ECG Normaux</span>
-                <span className="font-medium text-green-600">{stats.normalECGPercent}%</span>
-              </div>
-              <Progress value={stats.normalECGPercent} className="h-2 [&>div]:bg-green-500" />
-            </div>
-
-            {/* Utilisateurs actifs */}
-            <div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600">Utilisateurs actifs</span>
-                <span className="font-medium">
-                  {stats.activeUsers}/{stats.totalUsers}
-                </span>
-              </div>
-              <Progress 
-                value={(stats.activeUsers / stats.totalUsers) * 100} 
-                className="h-2" 
-              />
-            </div>
-
-            {/* Établissements actifs */}
-            <div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600">Établissements actifs</span>
-                <span className="font-medium">
-                  {stats.activeHospitals}/{stats.totalHospitals}
-                </span>
-              </div>
-              <Progress 
-                value={(stats.activeHospitals / stats.totalHospitals) * 100} 
-                className="h-2 [&>div]:bg-emerald-500" 
-              />
-            </div>
-
-            {/* Répartition par rôle */}
-            <div className="pt-4 border-t">
-              <p className="text-sm font-medium mb-3">Répartition des utilisateurs</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-2 bg-indigo-50 rounded text-center">
-                  <p className="text-lg font-bold text-indigo-700">
-                    {users.filter(u => u.role === 'cardiologue').length}
-                  </p>
-                  <p className="text-xs text-indigo-600">Cardiologues</p>
-                </div>
-                <div className="p-2 bg-emerald-50 rounded text-center">
-                  <p className="text-lg font-bold text-emerald-700">
-                    {users.filter(u => u.role === 'medecin').length}
-                  </p>
-                  <p className="text-xs text-emerald-600">Médecins</p>
-                </div>
-                <div className="p-2 bg-amber-50 rounded text-center">
-                  <p className="text-lg font-bold text-amber-700">
-                    {users.filter(u => u.role === 'secretaire').length}
-                  </p>
-                  <p className="text-xs text-amber-600">Secrétaires</p>
-                </div>
-                <div className="p-2 bg-slate-50 rounded text-center">
-                  <p className="text-lg font-bold text-slate-700">
-                    {users.filter(u => u.role === 'admin').length}
-                  </p>
-                  <p className="text-xs text-slate-600">Admins</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Actions rapides */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-indigo-50/50 hover:border-indigo-300/70 border-border/60 transition-all duration-200"
-          onClick={() => navigate('/admin/users')}
-        >
-          <Users className="h-6 w-6 text-indigo-600" />
-          <span className="text-sm font-medium">Utilisateurs</span>
-          <span className="text-[10px] text-slate-500">{stats.totalUsers} comptes</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-emerald-50/50 hover:border-emerald-300/70 border-border/60 transition-all duration-200"
-          onClick={() => navigate('/admin/hospitals')}
-        >
-          <Building2 className="h-6 w-6 text-emerald-600" />
-          <span className="text-sm font-medium">Établissements</span>
-          <span className="text-[10px] text-slate-500">{stats.totalHospitals} partenaires</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-blue-50/50 hover:border-blue-300/70 border-border/60 transition-all duration-200"
-          onClick={() => navigate('/admin/statistics')}
-        >
-          <BarChart3 className="h-6 w-6 text-blue-600" />
-          <span className="text-sm font-medium">Statistiques</span>
-          <span className="text-[10px] text-slate-500">Rapports détaillés</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          className="h-auto py-4 flex flex-col items-center gap-1.5 hover:bg-slate-100/50 hover:border-slate-300/70 border-border/60 transition-all duration-200"
-          onClick={() => navigate('/admin/settings')}
-        >
-          <Settings className="h-6 w-6 text-slate-600" />
-          <span className="text-sm font-medium">Paramètres</span>
-          <span className="text-[10px] text-slate-500">Configuration</span>
-        </Button>
-      </div>
     </div>
   );
 }

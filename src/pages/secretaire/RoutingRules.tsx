@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   GitBranch, Plus, Trash2, Edit2, ToggleLeft, ToggleRight,
   Calendar, Building2, Users, CheckCircle2, XCircle, Info,
-  AlertCircle
+  ChevronDown, ChevronUp, HelpCircle
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,20 @@ import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import {
   useRoutingStore, hospitals, cardiologists,
@@ -54,8 +68,13 @@ export function RoutingRules() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [expandedRule, setExpandedRule] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const activeRulesCount = rules.filter(isRuleCurrentlyActive).length;
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(rules.length / PAGE_SIZE));
+  const paginatedRules = rules.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -133,40 +152,45 @@ export function RoutingRules() {
     emails.map(email => cardiologists.find(c => c.id === email || c.name.toLowerCase().includes(email.split('@')[0]))?.name ?? email).join(', ');
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* En-tête */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <GitBranch className="w-5 h-5 text-indigo-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Règles de routage</h1>
-          </div>
-          <p className="text-gray-500 text-sm">
-            Programmez la redirection automatique des ECG vers des cardiologues spécifiques sur une période donnée.
-          </p>
+    <div className="space-y-3 max-w-5xl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-indigo-600" />
+            Règles de routage
+          </h1>
+          {activeRulesCount > 0 ? (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-xs font-medium text-green-700">
+              <CheckCircle2 className="h-3 w-3" />
+              {activeRulesCount} active{activeRulesCount > 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 border border-blue-200 text-xs font-medium text-blue-700">
+              <Info className="h-3 w-3" />
+              Aucune règle active
+            </span>
+          )}
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nouvelle règle
-        </Button>
+        <div className="flex items-center gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs p-3 text-xs">
+                <p className="font-medium mb-1">Comment fonctionne le routage ?</p>
+                <p>Par défaut, tous les ECG sont visibles par tous les cardiologues. Les règles permettent de rediriger les ECG d’établissements ciblés vers des cardiologues sur une période. Plusieurs règles actives : la plus récente prévaut. Règles désactivées : conservées, sans effet.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button onClick={openCreate} size="sm" className="h-8 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nouvelle règle
+          </Button>
+        </div>
       </div>
-
-      {/* Bannière règles actives */}
-      {activeRulesCount > 0 ? (
-        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-          <p className="text-sm text-green-800 font-medium">
-            {activeRulesCount} règle{activeRulesCount > 1 ? 's' : ''} de routage active{activeRulesCount > 1 ? 's' : ''} en ce moment.
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-          <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />
-          <p className="text-sm text-blue-700">
-            Aucune règle active. Les ECG sont visibles par tous les cardiologues.
-          </p>
-        </div>
-      )}
 
       {/* Liste des règles */}
       {rules.length === 0 ? (
@@ -174,113 +198,145 @@ export function RoutingRules() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <GitBranch className="w-10 h-10 text-slate-300 mb-3" />
             <p className="text-gray-500 text-sm">Aucune règle de routage définie.</p>
-            <Button variant="outline" className="mt-4" onClick={openCreate}>
+            <Button variant="outline" className="mt-4" size="sm" onClick={openCreate}>
               <Plus className="w-4 h-4 mr-2" />
               Créer la première règle
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {rules.map((rule) => {
-            const currentlyActive = isRuleCurrentlyActive(rule);
-            return (
-              <Card key={rule.id} className={cn(
-                'border transition-colors',
-                currentlyActive ? 'border-green-300 bg-green-50/30' : ''
-              )}>
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-9" />
+                <TableHead>Statut</TableHead>
+                <TableHead>Période</TableHead>
+                <TableHead>Établissements</TableHead>
+                <TableHead>Cardiologues</TableHead>
+                <TableHead className="text-right w-24">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedRules.map((rule) => {
+                const currentlyActive = isRuleCurrentlyActive(rule);
+                const isExpanded = expandedRule === rule.id;
+                return (
+                  <>
+                    <TableRow
+                      key={rule.id}
+                      className={cn(
+                        'cursor-pointer',
+                        currentlyActive && 'bg-green-50/50',
+                        isExpanded && 'bg-slate-50'
+                      )}
+                      onClick={() => setExpandedRule(isExpanded ? null : rule.id)}
+                    >
+                      <TableCell className="w-9 py-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setExpandedRule(isExpanded ? null : rule.id)}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="py-2">
                         {currentlyActive ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Active maintenant
+                          <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                            <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                            Active
                           </Badge>
                         ) : rule.active ? (
-                          <Badge variant="outline" className="text-slate-500">
-                            <Calendar className="w-3 h-3 mr-1" />
+                          <Badge variant="outline" className="text-slate-500 text-xs">
                             Programmée
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-slate-400">
-                            <XCircle className="w-3 h-3 mr-1" />
+                          <Badge variant="outline" className="text-slate-400 text-xs">
+                            <XCircle className="h-3 w-3 mr-0.5" />
                             Désactivée
                           </Badge>
                         )}
-                        <span className="text-xs text-slate-400 font-mono">{rule.id}</span>
-                      </div>
-
-                      <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                        <div className="flex items-center gap-1.5 text-gray-600">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
-                          <span>
-                            {format(parseISO(rule.dateFrom), 'd MMM yyyy', { locale: fr })} →{' '}
-                            {format(parseISO(rule.dateTo), 'd MMM yyyy', { locale: fr })}
-                          </span>
+                      </TableCell>
+                      <TableCell className="py-2 text-sm">
+                        {format(parseISO(rule.dateFrom), 'd MMM yyyy', { locale: fr })} → {format(parseISO(rule.dateTo), 'd MMM yyyy', { locale: fr })}
+                      </TableCell>
+                      <TableCell className="py-2 text-sm max-w-[180px] truncate" title={getHospitalNames(rule.hospitals)}>
+                        {getHospitalNames(rule.hospitals)}
+                      </TableCell>
+                      <TableCell className="py-2 text-sm max-w-[180px] truncate" title={getCardiologistNames(rule.cardiologistEmails)}>
+                        {getCardiologistNames(rule.cardiologistEmails)}
+                      </TableCell>
+                      <TableCell className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => toggleActive(rule.id)}
+                            title={rule.active ? 'Désactiver' : 'Activer'}
+                          >
+                            {rule.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-slate-400" />}
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(rule)} title="Modifier">
+                            <Edit2 className="h-3.5 w-3.5 text-slate-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:bg-red-50"
+                            onClick={() => setDeleteConfirm(rule.id)}
+                            title="Supprimer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <div className="flex items-start gap-1.5 text-gray-600">
-                          <Building2 className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
-                          <span className="line-clamp-1">{getHospitalNames(rule.hospitals)}</span>
-                        </div>
-                        <div className="flex items-start gap-1.5 text-gray-600">
-                          <Users className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
-                          <span className="line-clamp-1">{rule.cardiologistEmails.join(', ')}</span>
-                        </div>
-                      </div>
-
-                      {rule.notes && (
-                        <p className="mt-2 text-xs text-gray-500 italic line-clamp-1">{rule.notes}</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8"
-                        onClick={() => toggleActive(rule.id)}
-                        title={rule.active ? 'Désactiver' : 'Activer'}
-                      >
-                        {rule.active
-                          ? <ToggleRight className="w-5 h-5 text-green-600" />
-                          : <ToggleLeft className="w-5 h-5 text-slate-400" />
-                        }
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(rule)}>
-                        <Edit2 className="w-4 h-4 text-slate-500" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => setDeleteConfirm(rule.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow className="bg-slate-50/80">
+                        <TableCell colSpan={6} className="py-3 px-4">
+                          <div className="flex items-start gap-4 text-sm">
+                            <div className="flex items-center gap-2 text-slate-500">
+                              <Calendar className="h-4 w-4 text-indigo-400" />
+                              <span>{format(parseISO(rule.dateFrom), 'd MMM yyyy', { locale: fr })} → {format(parseISO(rule.dateTo), 'd MMM yyyy', { locale: fr })}</span>
+                            </div>
+                            <div className="flex items-start gap-2 text-slate-600 max-w-xs">
+                              <Building2 className="h-4 w-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                              <span>{getHospitalNames(rule.hospitals)}</span>
+                            </div>
+                            <div className="flex items-start gap-2 text-slate-600 max-w-xs">
+                              <Users className="h-4 w-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                              <span>{getCardiologistNames(rule.cardiologistEmails)}</span>
+                            </div>
+                            {rule.notes && (
+                              <p className="text-slate-500 italic flex-1">{rule.notes}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-1 py-2 border-t">
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(1)} title="Première page">«</Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹</Button>
+              <span className="text-xs text-slate-500 px-2">{page} / {totalPages}</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>›</Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(totalPages)} title="Dernière page">»</Button>
+            </div>
+          )}
+        </Card>
       )}
-
-      {/* Aide */}
-      <Card className="bg-slate-50 border-slate-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            Comment fonctionne le routage ?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-slate-500 space-y-1.5">
-          <p>• Par défaut, tous les ECG reçus sont visibles par l'ensemble des cardiologues disponibles.</p>
-          <p>• Vous pouvez programmer une règle pour rediriger les ECG d'un ou plusieurs établissements vers un ou plusieurs cardiologues ciblés sur une période donnée.</p>
-          <p>• Plusieurs règles peuvent être actives simultanément. En cas de conflit, la règle la plus récente s'applique.</p>
-          <p>• Les règles désactivées sont conservées pour historique mais n'ont aucun effet.</p>
-        </CardContent>
-      </Card>
 
       {/* Dialog création / édition */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

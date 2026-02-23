@@ -141,15 +141,27 @@ export function Emoluments() {
 
   return (
     <div className="space-y-3">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between h-11">
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-emerald-600" />
-          <h1 className="text-base font-semibold text-slate-800">Émoluments & Paiements</h1>
+      {/* En-tête + Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-indigo-600" />
+            Émoluments & Paiements
+          </h1>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <span className="font-bold">{summary.totalEcg}</span>
+            <span className="opacity-75">ECG</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <span className="font-bold">{formatFCFA(summary.totalEmoluments)}</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700">
+            <span className="font-bold">{summary.cardiologueCount + summary.medecinCount}</span>
+            <span className="opacity-75">bénéficiaires</span>
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-[180px]">
+        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+          <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="Période" />
             </SelectTrigger>
             <SelectContent>
@@ -158,7 +170,6 @@ export function Emoluments() {
               <SelectItem value="2024-10">Octobre 2024</SelectItem>
             </SelectContent>
           </Select>
-        </div>
       </div>
 
       {/* Détails */}

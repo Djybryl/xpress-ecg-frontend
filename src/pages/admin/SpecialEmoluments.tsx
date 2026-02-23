@@ -272,12 +272,29 @@ export function SpecialEmoluments() {
 
   return (
     <div className="space-y-3">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between h-12">
-        <div className="flex items-center gap-2">
-          <Star className="h-5 w-5 text-amber-600" />
-          <h1 className="text-lg font-semibold text-slate-800">Émoluments Spéciaux</h1>
-          <span className="text-xs text-slate-400">({stats.total} paramétrés, {stats.active} actifs)</span>
+      {/* En-tête + Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Star className="h-5 w-5 text-indigo-600" />
+            Émoluments Spéciaux
+          </h1>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-xs font-medium text-amber-700">
+            <span className="font-bold">{stats.total}</span>
+            <span className="opacity-75">paramétrés</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
+            <span className="font-bold">{stats.active}</span>
+            <span className="opacity-75">actifs</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <span className="font-bold">{stats.cardiologues}</span>
+            <span className="opacity-75">cardio</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <span className="font-bold">{stats.medecins}</span>
+            <span className="opacity-75">médecins</span>
+          </span>
         </div>
         <Button onClick={handleOpenNew} size="sm" className="bg-amber-600 hover:bg-amber-700 h-8">
           <Plus className="h-3.5 w-3.5 mr-1.5" />

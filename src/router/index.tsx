@@ -19,7 +19,7 @@ import { PatientsPage } from '@/pages/medecin/Patients';
 import { HistoryPage } from '@/pages/medecin/History';
 
 // Secrétaire pages
-import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending, RoutingRules } from '@/pages/secretaire';
+import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending, RoutingRules, PatientsSecretaire, ArchivesSecretaire } from '@/pages/secretaire';
 
 // Admin pages
 import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports, SpecialEmoluments, ActivityLogs } from '@/pages/admin';
@@ -131,8 +131,8 @@ export function AppRouter() {
           <Route path="assign" element={<ECGAssignment />} />
           <Route path="send-reports" element={<ReportSending />} />
           <Route path="routing" element={<RoutingRules />} />
-          <Route path="patients" element={<UnderConstruction title="Patients" />} />
-          <Route path="archives" element={<UnderConstruction title="Archives" />} />
+          <Route path="patients" element={<PatientsSecretaire />} />
+          <Route path="archives" element={<ArchivesSecretaire />} />
         </Route>
 
         {/* Admin */}

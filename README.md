@@ -93,7 +93,7 @@ L'application utilise un thème **Pastel Indigo** moderne:
 
 - [ ] Phase 1: Page de connexion ✅
 - [ ] Phase 2: Dashboard cardiologue ✅
-- [ ] Phase 3: Visualiseur ECG
+- [ ] Phase 3: Visualiseur ECG ✅
 - [ ] Phase 4: Interface médecin référent
 - [ ] Phase 5: Génération de rapports PDF
 - [ ] Phase 6: Backend et base de données

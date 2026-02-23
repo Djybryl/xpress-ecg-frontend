@@ -82,19 +82,33 @@ export function Statistics() {
   const platformRevenue = totalRevenue - totalEmoluments;
 
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-indigo-600" />
-            Statistiques globales
+    <div className="space-y-3">
+      {/* En-tête compact + pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-indigo-600" />
+            Statistiques
           </h1>
-          <p className="text-gray-500 mt-1">Vue d'ensemble de l'activité de la plateforme</p>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <Activity className="h-3 w-3" />
+            <span className="font-bold">{stats.totalECG}</span>
+            <span className="opacity-75">ECG total</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
+            <Users className="h-3 w-3" />
+            <span className="font-bold">{stats.totalUsers}</span>
+            <span className="opacity-75">utilisateurs</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <Building2 className="h-3 w-3" />
+            <span className="font-bold">{stats.totalHospitals}</span>
+            <span className="opacity-75">établissements</span>
+          </span>
         </div>
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px]">
-            <Calendar className="h-4 w-4 mr-2" />
+          <SelectTrigger className="w-[160px] h-8 text-xs">
+            <Calendar className="h-3.5 w-3.5 mr-1.5" />
             <SelectValue placeholder="Période" />
           </SelectTrigger>
           <SelectContent>

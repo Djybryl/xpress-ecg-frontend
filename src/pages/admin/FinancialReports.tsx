@@ -119,13 +119,25 @@ export function FinancialReports() {
     }, 1500);
   };
 
+  const formatFCFAShort = (n: number) => (n / 1e6).toFixed(1) + 'M FCFA';
+
   return (
     <div className="space-y-3">
-      {/* En-tête compact */}
-      <div className="flex items-center justify-between h-11">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-purple-600" />
-          <h1 className="text-base font-semibold text-slate-800">Rapports Financiers</h1>
+      {/* En-tête + Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-indigo-600" />
+            Rapports Financiers
+          </h1>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
+            <DollarSign className="h-3 w-3" />
+            <span className="font-bold">{formatFCFAShort(periodData.totalRevenue)}</span>
+          </span>
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
+            <span className="font-bold">{periodData.ecgCount}</span>
+            <span className="opacity-75">ECG</span>
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>

@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { FileText, Download, Printer, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import type { CardiologueECG } from '@/stores/useCardiologueStore';
+import { IMAGES } from '@/lib/constants';
 
 interface ReportPDFPreviewProps {
   ecg: CardiologueECG;
@@ -23,8 +25,17 @@ function fmtDateTime(dateStr?: string) {
 export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: ReportPDFPreviewProps) {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const interp = ecg.interpretation;
-  const m = ecg.measurements;
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const { toast } = useToast();
+  const interp = ecg?.interpretation;
+  const m = ecg?.measurements;
+  const findings = interp?.findings ?? [];
+  const conclusion = interp?.conclusion ?? '—';
+
+  useEffect(() => {
+    if (!open || !ecg?.ecgImageUrl) return;
+    setImageLoaded(false);
+  }, [open, ecg?.ecgImageUrl]);
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
@@ -34,15 +45,29 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
         import('html2canvas'),
         import('jspdf'),
       ]);
-      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 3,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 8000,
+      });
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('l', 'mm', 'a4');
       const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = (canvas.height * pdfW) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, Math.min(pdfH, pdf.internal.pageSize.getHeight()));
-      pdf.save(`Rapport-${ecg.id}-${ecg.patientName.replace(/\s+/g, '-')}.pdf`);
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pdfW) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfW, Math.min(imgH, pdfH));
+      pdf.save(`Rapport-${ecg.id}-${String(ecg.patientName || 'Patient').replace(/\s+/g, '-')}.pdf`);
+      toast({ title: 'PDF téléchargé', description: 'Le rapport a été enregistré.', variant: 'default' });
     } catch (e) {
       console.error('Erreur PDF :', e);
+      toast({
+        title: 'Erreur de génération',
+        description: 'Impossible de générer le PDF. Réessayez ou utilisez l\'impression.',
+        variant: 'destructive',
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -227,6 +252,7 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                       { label: 'QRS', value: m?.qrsDuration, unit: 'ms', color: '#7e22ce', bg: '#fdf4ff' },
                       { label: 'QT', value: m?.qtInterval, unit: 'ms', color: '#b45309', bg: '#fffbeb' },
                       { label: 'QTc', value: m?.qtcInterval, unit: 'ms', color: '#b45309', bg: '#fffbeb' },
+                      { label: 'Sokolow', value: m?.sokolow, unit: 'mm', color: '#0d9488', bg: '#ccfbf1' },
                     ].filter(x => x.value !== undefined && x.value !== null).map((item, i) => (
                       <div key={i} style={{
                         padding: '5px 7px', borderRadius: '4px', background: item.bg,
@@ -240,13 +266,16 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                       </div>
                     ))}
                   </div>
-                  {m?.axis && (
+                  {(m?.qrsAxis || m?.pAxis || m?.tAxis || m?.axis) && (
                     <div style={{
                       marginTop: '4px', padding: '5px 8px', borderRadius: '4px',
-                      background: '#f8fafc', textAlign: 'center', border: '1px solid #e2e8f0',
+                      background: '#f8fafc', border: '1px solid #e2e8f0',
+                      fontSize: '9px', color: '#475569',
                     }}>
-                      <span style={{ fontSize: '9px', color: '#64748b' }}>Axe : </span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#334155' }}>{m.axis}</span>
+                      {m?.pAxis && <span>P: {m.pAxis}° </span>}
+                      {m?.qrsAxis && <span>QRS: {m.qrsAxis}° </span>}
+                      {m?.tAxis && <span>T: {m.tAxis}°</span>}
+                      {!m?.pAxis && !m?.qrsAxis && !m?.tAxis && m?.axis && <span>Axe: {m.axis}</span>}
                     </div>
                   )}
                 </div>
@@ -269,7 +298,7 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                   letterSpacing: '1px', color: '#94a3b8', marginBottom: '8px',
                 }}>Tracé Électrocardiographique</div>
 
-                {/* Zone du tracé ECG */}
+                {/* Zone du tracé ECG — image réelle ou tracé simulé (65-70% du A4) */}
                 <div style={{
                   flex: 1,
                   borderRadius: '8px',
@@ -278,52 +307,58 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                   position: 'relative',
                   overflow: 'hidden',
                   minHeight: '440px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  {/* Grille ECG simulée */}
-                  <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, opacity: 0.12 }}>
-                    <defs>
-                      <pattern id="smallGrid" width="5" height="5" patternUnits="userSpaceOnUse">
-                        <path d="M 5 0 L 0 0 0 5" fill="none" stroke="#e74c3c" strokeWidth="0.3" />
-                      </pattern>
-                      <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
-                        <rect width="25" height="25" fill="url(#smallGrid)" />
-                        <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#e74c3c" strokeWidth="0.8" />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
-                  </svg>
-
-                  {/* Tracé ECG simulé — 4 lignes de dérivations */}
-                  <svg viewBox="0 0 700 450" width="100%" height="100%" style={{ position: 'relative', zIndex: 1 }}>
-                    {[
-                      { y: 56, label: 'DI', d: 'M0,56 L30,56 35,56 40,52 45,56 80,56 85,48 88,56 91,20 94,68 97,56 100,56 140,56 145,56 150,52 155,56 190,56 195,48 198,56 201,18 204,70 207,56 210,56 250,56 255,56 260,52 265,56 300,56 305,48 308,56 311,22 314,66 317,56 350,56' },
-                      { y: 168, label: 'DII', d: 'M0,168 L30,168 35,168 40,162 45,168 80,168 85,158 88,168 91,125 94,182 97,168 100,168 140,168 145,168 150,162 155,168 190,168 195,158 198,168 201,122 204,185 207,168 210,168 250,168 255,168 260,162 265,168 300,168 305,158 308,168 311,128 314,180 317,168 350,168' },
-                      { y: 280, label: 'V1', d: 'M0,280 L30,280 35,280 40,276 45,280 80,280 85,290 88,280 91,260 94,295 97,280 100,280 140,280 145,280 150,276 155,280 190,280 195,290 198,280 201,258 204,298 207,280 210,280 250,280 255,280 260,276 265,280 300,280 305,290 308,280 311,262 314,293 317,280 350,280' },
-                      { y: 392, label: 'V5', d: 'M0,392 L30,392 35,392 40,388 45,392 80,392 85,382 88,392 91,350 94,405 97,392 100,392 140,392 145,392 150,388 155,392 190,392 195,382 198,392 201,348 204,408 207,392 210,392 250,392 255,392 260,388 265,392 300,392 305,382 308,392 311,352 314,404 317,392 350,392' },
-                    ].map((trace, idx) => (
-                      <g key={idx}>
-                        <text x="4" y={trace.y - 22} fill="#6366f1" fontSize="10" fontWeight="700" fontFamily="monospace">{trace.label}</text>
-                        <path d={trace.d} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                        {/* Répéter le pattern */}
-                        <path d={trace.d.replace(/(\d+)/g, (_, n) => {
-                          const num = parseInt(n);
-                          return num <= 2 ? n : String(num + 350);
-                        })} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </g>
-                    ))}
-                    {/* Marqueur calibration */}
-                    <g>
-                      <text x="660" y="440" fill="#94a3b8" fontSize="8" fontFamily="monospace">25mm/s | 10mm/mV</text>
-                    </g>
-                  </svg>
-
-                  {/* Placeholder texte si pas d'image réelle */}
-                  <div style={{
-                    position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)',
-                    fontSize: '8px', color: '#cbd5e1', letterSpacing: '0.5px',
-                  }}>
-                    [Tracé ECG original — emplacement pour l'image réelle]
-                  </div>
+                  {ecg?.ecgImageUrl ? (
+                    <img
+                      src={ecg.ecgImageUrl}
+                      alt="Tracé ECG 12 dérivations"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                      crossOrigin="anonymous"
+                      onLoad={() => setImageLoaded(true)}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = IMAGES.ECG.FALLBACK;
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0, opacity: 0.12 }}>
+                        <defs>
+                          <pattern id="reportGridSmall" width="5" height="5" patternUnits="userSpaceOnUse">
+                            <path d="M 5 0 L 0 0 0 5" fill="none" stroke="#e74c3c" strokeWidth="0.3" />
+                          </pattern>
+                          <pattern id="reportGrid" width="25" height="25" patternUnits="userSpaceOnUse">
+                            <rect width="25" height="25" fill="url(#reportGridSmall)" />
+                            <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#e74c3c" strokeWidth="0.8" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#reportGrid)" />
+                      </svg>
+                      <svg viewBox="0 0 700 450" width="100%" height="100%" style={{ position: 'relative', zIndex: 1 }}>
+                        {[
+                          { y: 56, label: 'I', d: 'M0,56 L30,56 35,56 40,52 45,56 80,56 85,48 88,56 91,20 94,68 97,56 100,56 140,56 145,56 150,52 155,56 190,56 195,48 198,56 201,18 204,70 207,56 210,56 250,56 255,56 260,52 265,56 300,56 305,48 308,56 311,22 314,66 317,56 350,56' },
+                          { y: 168, label: 'II', d: 'M0,168 L30,168 35,168 40,162 45,168 80,168 85,158 88,168 91,125 94,182 97,168 100,168 140,168 145,168 150,162 155,168 190,168 195,158 198,168 201,122 204,185 207,168 210,168 250,168 255,168 260,162 265,168 300,168 305,158 308,168 311,128 314,180 317,168 350,168' },
+                          { y: 280, label: 'V1', d: 'M0,280 L30,280 35,280 40,276 45,280 80,280 85,290 88,280 91,260 94,295 97,280 100,280 140,280 145,280 150,276 155,280 190,280 195,290 198,280 201,258 204,298 207,280 210,280 250,280 255,280 260,276 265,280 300,280 305,290 308,280 311,262 314,293 317,280 350,280' },
+                          { y: 392, label: 'V5', d: 'M0,392 L30,392 35,392 40,388 45,392 80,392 85,382 88,392 91,350 94,405 97,392 100,392 140,392 145,392 150,388 155,392 190,392 195,382 198,392 201,348 204,408 207,392 210,392 250,392 255,392 260,388 265,392 300,392 305,382 308,392 311,352 314,404 317,392 350,392' },
+                        ].map((trace, idx) => (
+                          <g key={idx}>
+                            <text x="4" y={trace.y - 22} fill="#6366f1" fontSize="10" fontWeight="700" fontFamily="monospace">{trace.label}</text>
+                            <path d={trace.d} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d={trace.d.replace(/(\d+)/g, (_, n) => parseInt(n) <= 2 ? n : String(parseInt(n) + 350)} fill="none" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                          </g>
+                        ))}
+                        <text x="660" y="440" fill="#94a3b8" fontSize="8" fontFamily="monospace">25mm/s | 10mm/mV</text>
+                      </svg>
+                      <div style={{ position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', fontSize: '8px', color: '#94a3b8' }}>
+                        Dérivations : I · II · III · aVR · aVL · aVF · V1–V6
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -340,15 +375,17 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                     letterSpacing: '1px', color: '#94a3b8', marginBottom: '6px',
                   }}>Constatations</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                    {(interp?.findings ?? []).map((f, i) => (
+                    {findings.length > 0 ? findings.map((f, i) => (
                       <div key={i} style={{
                         fontSize: '10px', color: '#334155', paddingLeft: '10px',
-                        borderLeft: `2px solid ${interp.isNormal ? '#22c55e' : '#f59e0b'}`,
+                        borderLeft: `2px solid ${interp?.isNormal ? '#22c55e' : '#f59e0b'}`,
                         lineHeight: '1.4',
                       }}>
                         {f}
                       </div>
-                    ))}
+                    )) : (
+                      <div style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic' }}>—</div>
+                    )}
                   </div>
                 </div>
 
@@ -373,7 +410,7 @@ export function ReportPDFPreview({ ecg, cardiologistName, open, onOpenChange }: 
                     lineHeight: '1.45',
                     fontWeight: 500,
                   }}>
-                    {interp?.conclusion}
+                    {conclusion}
                   </div>
                 </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Send, 
   Search, 
@@ -63,6 +63,10 @@ export function ReportSending() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [itemsToSend, setItemsToSend] = useState<string[]>([]);
   const [emailMessage, setEmailMessage] = useState('');
+  const [tab, setTab] = useState<'to_send' | 'sent'>('to_send');
+  const [page, setPage] = useState(1);
+  const [sendAllConfirm, setSendAllConfirm] = useState(false);
+  const PAGE_SIZE = 10;
 
   // ECG prêts à être envoyés
   const readyToSend = getByStatus('ready_to_send');
@@ -130,86 +134,98 @@ export function ReportSending() {
       title: "Tous les rapports envoyés",
       description: `${allIds.length} rapport(s) envoyé(s) aux médecins référents.`
     });
+    setSendAllConfirm(false);
   };
 
+  const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
+  const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => { setPage(1); }, [searchTerm, urgencyFilter, tab]);
+
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Send className="h-6 w-6 text-indigo-600" />
-            Envoi des Rapports
-          </h1>
-          <p className="text-gray-500 mt-1">Envoyez les rapports interprétés aux médecins référents</p>
-        </div>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Send className="h-5 w-5 text-indigo-600" />
+          Envoi des Rapports
+          {counts.ready_to_send > 0 && <Badge variant="secondary" className="text-xs">{counts.ready_to_send}</Badge>}
+        </h1>
         <Button 
-          onClick={handleSendAll}
+          onClick={() => setSendAllConfirm(true)}
           disabled={filteredECGs.length === 0}
-          className="bg-gradient-to-r from-green-600 to-emerald-600"
+          size="sm"
+          className="h-8 text-xs bg-green-600 hover:bg-green-700"
         >
-          <Send className="h-4 w-4 mr-2" />
+          <Send className="h-3.5 w-3.5 mr-1.5" />
           Envoyer tous ({filteredECGs.length})
         </Button>
       </div>
 
-      {/* Filtres et actions */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher patient, ID, médecin..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Urgence" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes</SelectItem>
-                  <SelectItem value="urgent">Urgents</SelectItem>
-                  <SelectItem value="normal">Normaux</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedItems.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">
-                  {selectedItems.length} sélectionné(s)
-                </span>
-                <Button 
-                  onClick={() => openSendDialog(selectedItems)}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Envoyer la sélection
-                </Button>
-              </div>
+        <CardHeader className="border-b p-0">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
+            <button onClick={() => setTab('to_send')} className={cn('flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', tab === 'to_send' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-200')}>
+              À envoyer <span className={cn('rounded-full px-1', tab === 'to_send' ? 'bg-white/20' : 'bg-gray-200')}>{counts.ready_to_send}</span>
+            </button>
+            <button onClick={() => setTab('sent')} className={cn('flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium', tab === 'sent' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200')}>
+              Envoyés récemment <span className={cn('rounded-full px-1', tab === 'sent' ? 'bg-white/20' : 'bg-gray-200')}>{sentECGs.length}</span>
+            </button>
+            {tab === 'to_send' && (
+              <>
+                <div className="relative ml-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Input placeholder="Patient, ID…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs w-40" />
+                </div>
+                <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue placeholder="Urgence" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes</SelectItem>
+                    <SelectItem value="urgent">Urgents</SelectItem>
+                    <SelectItem value="normal">Normaux</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedItems.length > 0 && (
+                  <Button onClick={() => openSendDialog(selectedItems)} size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700 ml-auto">
+                    <Send className="h-3.5 w-3.5 mr-1.5" />Envoyer ({selectedItems.length})
+                  </Button>
+                )}
+              </>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Liste des rapports à envoyer */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            Rapports prêts à envoyer
-            {counts.ready_to_send > 0 && (
-              <Badge variant="secondary" className="ml-2">{counts.ready_to_send}</Badge>
-            )}
-          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredECGs.length === 0 ? (
+          {tab === 'sent' ? (
+            sentECGs.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="font-medium">Aucun rapport envoyé récemment</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>ID ECG</TableHead>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Médecin</TableHead>
+                    <TableHead>Envoyé</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sentECGs.map(ecg => (
+                    <TableRow key={ecg.id}>
+                      <TableCell className="font-mono text-sm">{ecg.id}</TableCell>
+                      <TableCell className="font-medium">{ecg.patientName}</TableCell>
+                      <TableCell className="text-sm">{ecg.referringDoctor}</TableCell>
+                      <TableCell className="text-sm text-gray-500">
+                        {ecg.dateSent && formatDistanceToNow(parseISO(ecg.dateSent), { addSuffix: true, locale: fr })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )
+          ) : filteredECGs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Mail className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p className="font-medium">Aucun rapport à envoyer</p>
@@ -236,7 +252,7 @@ export function ReportSending() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredECGs.map((ecg) => (
+                {paginatedECGs.map((ecg) => (
                   <>
                     <TableRow 
                       key={ecg.id}
@@ -417,60 +433,38 @@ export function ReportSending() {
               </TableBody>
             </Table>
           )}
+          {tab === 'to_send' && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t text-xs text-gray-500">
+              <span>{filteredECGs.length} résultat{filteredECGs.length > 1 ? 's' : ''} • page {page}/{totalPages}</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => Math.max(1, Math.min(page - 2, totalPages - 4)) + i).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" className={cn('h-6 w-6 p-0 text-xs', p === page && 'bg-indigo-600 text-white')} onClick={() => setPage(p)}>{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Rapports récemment envoyés */}
-      {sentECGs.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Récemment envoyés
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>ID ECG</TableHead>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Médecin référent</TableHead>
-                  <TableHead>Envoyé</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sentECGs.map((ecg) => (
-                  <TableRow key={ecg.id} className="bg-green-50/30">
-                    <TableCell className="font-mono text-sm font-medium">
-                      {ecg.id}
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-medium">{ecg.patientName}</p>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm">{ecg.referringDoctor}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {ecg.dateSent && formatDistanceToNow(parseISO(ecg.dateSent), { addSuffix: true, locale: fr })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-100 text-green-700">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Envoyé
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {/* Dialog confirmation Envoyer tous */}
+      <Dialog open={sendAllConfirm} onOpenChange={setSendAllConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Envoyer tous les rapports</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Envoyer les {filteredECGs.length} rapport{filteredECGs.length > 1 ? 's' : ''} aux médecins référents ?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendAllConfirm(false)}>Annuler</Button>
+            <Button onClick={handleSendAll}>Confirmer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de prévisualisation */}
       <Dialog open={!!previewItem} onOpenChange={() => setPreviewItem(null)}>
