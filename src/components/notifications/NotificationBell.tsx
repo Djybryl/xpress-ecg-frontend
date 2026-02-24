@@ -15,16 +15,14 @@ export function NotificationBell() {
   const {
     notifications,
     unreadCount,
-    fetchNotifications,
+    initForRole,
     markAsRead,
     markAllAsRead,
-    subscribeToNotifications
   } = useNotificationStore();
 
   useEffect(() => {
-    fetchNotifications();
-    subscribeToNotifications();
-  }, [fetchNotifications, subscribeToNotifications]);
+    initForRole('cardiologue'); // Rôle sera fourni par contexte en prod
+  }, [initForRole]);
 
   const handleNotificationClick = async (id: string) => {
     await markAsRead(id);
@@ -74,13 +72,13 @@ export function NotificationBell() {
                       <>
                         Nouvel ECG reçu pour{' '}
                         <span className="font-medium">
-                          {(notification.content as any).patient_name}
+                          {notification.message}
                         </span>
                       </>
                     )}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {format(new Date(notification.created_at), 'PPp', { locale: fr })}
+                    {format(new Date(notification.createdAt), 'PPp', { locale: fr })}
                   </div>
                 </div>
               </DropdownMenuItem>

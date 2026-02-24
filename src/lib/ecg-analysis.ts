@@ -55,7 +55,7 @@ export class ECGAnalysisService {
       // 3. Upload file
       const filePath = `ecg-files/${ecgRecord.id}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
-        .from('ecg-files')
+        .from('ecg_files')
         .upload(filePath, file, {
           cacheControl: '3600',
           contentType: file.type

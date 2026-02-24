@@ -46,7 +46,7 @@ export async function createECG({
     const filePath = `ecg-files/${ecgRecord.id}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('ecg-files')
+      .from('ecg_files')
       .upload(filePath, file);
 
     if (uploadError) throw uploadError;

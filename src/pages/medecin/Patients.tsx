@@ -73,13 +73,13 @@ export function PatientsPage() {
 
   // Stats
   const withECG = patients.filter(p => p.ecgCount > 0).length;
-  const recentECG = patients.filter(p => p.lastECG && new Date(p.lastECG) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
+  const recentECG = patients.filter(p => p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
 
   // Filtrage des patients
   const basePatients = searchTerm ? searchPatients(searchTerm) : patients;
   const filteredPatients = basePatients.filter(p => {
     if (ecgFilter === 'with_ecg') return p.ecgCount > 0;
-    if (ecgFilter === 'recent') return p.lastECG && new Date(p.lastECG) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    if (ecgFilter === 'recent') return p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return true;
   });
 

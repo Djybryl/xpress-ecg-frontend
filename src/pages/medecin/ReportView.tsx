@@ -280,7 +280,7 @@ export function ReportViewPage() {
                 <div className="flex justify-between items-center py-1.5 border-b border-dashed">
                   <span className="text-sm text-gray-600">Intervalle PR</span>
                   <span className="text-sm font-semibold">
-                    {report.measurements.prInterval > 0 ? <>{report.measurements.prInterval} <span className="font-normal text-gray-400">ms</span></> : <span className="text-gray-400">N/A</span>}
+                    {(report.measurements?.prInterval ?? 0) > 0 ? <>{report.measurements.prInterval} <span className="font-normal text-gray-400">ms</span></> : <span className="text-gray-400">N/A</span>}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-1.5 border-b border-dashed">

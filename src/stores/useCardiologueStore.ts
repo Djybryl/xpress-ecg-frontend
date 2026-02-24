@@ -401,7 +401,7 @@ interface CardiologueStore {
   saveMeasurements: (id: string, measurements: ECGMeasurements) => void;
   saveInterpretation: (id: string, interpretation: ECGInterpretation) => void;
   saveDraft: (id: string, draft: ECGDraft) => void;
-  completeAnalysis: (id: string, interpretation: ECGInterpretation) => void;
+  completeAnalysis: (id: string, interpretation: ECGInterpretation, measurements?: ECGMeasurements) => void;
   addNote: (id: string, note: string) => void;
 }
 
@@ -554,7 +554,7 @@ export const useCardiologueStore = create<CardiologueStore>((set, get) => ({
     }));
   },
 
-  completeAnalysis: (id, interpretation) => {
+  completeAnalysis: (id, interpretation, measurements) => {
     const ecg = get().ecgs.find(e => e.id === id);
     set(state => ({
       ecgs: state.ecgs.map(e =>
@@ -564,6 +564,7 @@ export const useCardiologueStore = create<CardiologueStore>((set, get) => ({
               status: 'completed' as ECGStatus,
               dateCompleted: new Date().toISOString(),
               interpretation,
+              ...(measurements && { measurements }),
             }
           : e
       ),

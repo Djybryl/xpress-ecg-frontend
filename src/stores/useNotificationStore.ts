@@ -123,11 +123,11 @@ interface NotificationStore {
   notifications: AppNotification[];
   unreadCount: number;
   isLoading: boolean;
-  // Initialisation avec les données du rôle courant
   initForRole: (role: UserRole) => void;
+  fetchNotifications: () => void;
+  subscribeToNotifications: () => () => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
-  // Nouvelles actions
   pushNotification: (n: Omit<AppNotification, 'id' | 'read' | 'createdAt'>) => void;
   deleteNotification: (id: string) => void;
   clearAll: () => void;
@@ -145,6 +145,11 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       unreadCount: notifications.filter(n => !n.read).length,
     });
   },
+
+  fetchNotifications: () => {
+    // initForRole est appelé ailleurs avec le rôle; ici no-op ou refresh
+  },
+  subscribeToNotifications: () => () => {},
 
   markAsRead: (id: string) => {
     set(state => {

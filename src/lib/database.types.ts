@@ -307,6 +307,30 @@ export interface Database {
           }
         ]
       }
+      ecg_tags: {
+        Row: { id: string; name: string; color: string; created_at?: string }
+        Insert: { id?: string; name: string; color: string; created_at?: string }
+        Update: { id?: string; name?: string; color?: string; created_at?: string }
+        Relationships: []
+      }
+      ecg_tag_relations: {
+        Row: { id: string; ecg_record_id: string; tag_id: string; created_at?: string }
+        Insert: { id?: string; ecg_record_id: string; tag_id: string; created_at?: string }
+        Update: { id?: string; ecg_record_id?: string; tag_id?: string; created_at?: string }
+        Relationships: []
+      }
+      ecg_favorites: {
+        Row: { id: string; user_id: string; ecg_record_id: string; created_at?: string }
+        Insert: { id?: string; user_id: string; ecg_record_id: string; created_at?: string }
+        Update: { id?: string; user_id?: string; ecg_record_id?: string; created_at?: string }
+        Relationships: []
+      }
+      messages: {
+        Row: { id: string; sender_id: string; recipient_id: string; content: string; ecg_record_id?: string | null; created_at?: string }
+        Insert: { id?: string; sender_id: string; recipient_id: string; content: string; ecg_record_id?: string | null; created_at?: string }
+        Update: { id?: string; sender_id?: string; recipient_id?: string; content?: string; ecg_record_id?: string | null; created_at?: string }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -322,3 +346,5 @@ export interface Database {
     }
   }
 }
+
+export type Tables = Database['public']['Tables']

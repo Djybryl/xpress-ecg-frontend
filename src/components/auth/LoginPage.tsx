@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAuthContext } from '@/providers/AuthProvider';
 
-const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
+// Afficher les boutons démo par défaut (sauf si explicitement désactivé)
+const IS_DEMO = import.meta.env.VITE_DEMO_MODE !== 'false';
 
 export function LoginPage() {
   const { login, requestPasswordReset } = useAuthContext();

@@ -1460,7 +1460,7 @@ Utilisez les raccourcis:
                       { label: 'Axe T', unit: '°', current: measurements.tAxis, previous: selectedPrevious.measurements.tAxis, key: 'tAxis' },
                       { label: 'Indice Sokolow', unit: 'mm', current: measurements.sokolow, previous: selectedPrevious.measurements.sokolow, key: 'sokolow' },
                     ].map((param) => {
-                      const delta = calculateDelta(param.current, param.previous);
+                      const delta = calculateDelta(Number(param.current) || undefined, Number(param.previous) || undefined);
                       const statusColor = delta.status === 'alert' ? 'text-red-600' : delta.status === 'attention' ? 'text-amber-600' : 'text-green-600';
                       const statusIcon = delta.status === 'alert' ? '🔴' : delta.status === 'attention' ? '🟡' : '🟢';
                       const statusText = delta.status === 'alert' ? 'Significatif' : delta.status === 'attention' ? 'À surveiller' : 'Stable';

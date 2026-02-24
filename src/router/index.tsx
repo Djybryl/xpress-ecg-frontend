@@ -1,7 +1,9 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { LoginPage } from '@/components/auth/LoginPage';
 import { useAuthContext } from '@/providers/AuthProvider';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { UnderConstruction } from '@/components/shared/UnderConstruction';
 import { NotFoundPage } from '@/components/shared/NotFoundPage';
 import type { UserRole } from '@/config/roles';
@@ -21,8 +23,16 @@ import { HistoryPage } from '@/pages/medecin/History';
 // Secrétaire pages
 import { SecretaireDashboard, ECGInbox, ECGAssignment, ReportSending, RoutingRules, PatientsSecretaire, ArchivesSecretaire } from '@/pages/secretaire';
 
-// Admin pages
-import { AdminDashboard, UserManagement, HospitalManagement, Statistics, TarifSettings, Emoluments, FinancialReports, SpecialEmoluments, ActivityLogs } from '@/pages/admin';
+// Admin pages (lazy pour réduire le bundle initial)
+const AdminDashboard = lazy(() => import('@/pages/admin').then(m => ({ default: m.AdminDashboard })));
+const UserManagement = lazy(() => import('@/pages/admin').then(m => ({ default: m.UserManagement })));
+const HospitalManagement = lazy(() => import('@/pages/admin').then(m => ({ default: m.HospitalManagement })));
+const Statistics = lazy(() => import('@/pages/admin').then(m => ({ default: m.Statistics })));
+const TarifSettings = lazy(() => import('@/pages/admin').then(m => ({ default: m.TarifSettings })));
+const Emoluments = lazy(() => import('@/pages/admin').then(m => ({ default: m.Emoluments })));
+const FinancialReports = lazy(() => import('@/pages/admin').then(m => ({ default: m.FinancialReports })));
+const SpecialEmoluments = lazy(() => import('@/pages/admin').then(m => ({ default: m.SpecialEmoluments })));
+const ActivityLogs = lazy(() => import('@/pages/admin').then(m => ({ default: m.ActivityLogs })));
 
 // Common pages
 import { ProfilePage } from '@/pages/common/Profile';
@@ -145,15 +155,15 @@ export function AppRouter() {
           }
         >
           <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="hospitals" element={<HospitalManagement />} />
-          <Route path="statistics" element={<Statistics />} />
-          <Route path="tarifs" element={<TarifSettings />} />
-          <Route path="emoluments" element={<Emoluments />} />
-          <Route path="special-emoluments" element={<SpecialEmoluments />} />
-          <Route path="financial" element={<FinancialReports />} />
+          <Route path="users" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><UserManagement /></Suspense>} />
+          <Route path="hospitals" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><HospitalManagement /></Suspense>} />
+          <Route path="statistics" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><Statistics /></Suspense>} />
+          <Route path="tarifs" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><TarifSettings /></Suspense>} />
+          <Route path="emoluments" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><Emoluments /></Suspense>} />
+          <Route path="special-emoluments" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><SpecialEmoluments /></Suspense>} />
+          <Route path="financial" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><FinancialReports /></Suspense>} />
           <Route path="settings" element={<UnderConstruction title="Paramètres système" />} />
-          <Route path="logs" element={<ActivityLogs />} />
+          <Route path="logs" element={<Suspense fallback={<div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full" />}><ActivityLogs /></Suspense>} />
         </Route>
 
         {/* Routes communes */}

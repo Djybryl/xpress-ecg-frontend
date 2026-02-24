@@ -1,4 +1,4 @@
-import { Tables } from '@/lib/database.types';
+import type { Tables } from '@/lib/database.types';
 
 export interface Hospital {
   id: string;
@@ -6,11 +6,13 @@ export interface Hospital {
   pendingCount: number;
 }
 
-export interface ECGRecord extends Tables['ecg_records']['Row'] {
+export type ECGRecord = Tables['ecg_records']['Row'] & {
   files?: Tables['ecg_files']['Row'][];
-  referring_doctor?: Tables['users']['Row'];
+  referring_doctor?: Partial<Tables['users']['Row']>;
   second_opinions?: Tables['second_opinions']['Row'][];
-}
+  tags?: Array<{ id: string; name: string; color: string }>;
+  notes?: string | null;
+};
 
 export interface DashboardStats {
   today: {

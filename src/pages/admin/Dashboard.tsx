@@ -7,6 +7,7 @@ import {
   Clock,
   CheckCircle2,
   ChevronRight,
+  AlertTriangle,
   UserPlus,
   FileText,
   BarChart3,

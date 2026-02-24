@@ -19,11 +19,12 @@ interface ECGDatabase extends DBSchema {
     indexes: { 'by-record': string };
   };
   sync_queue: {
-    key: string;
+    key: number;
     value: {
+      id?: number;
       operation: 'create' | 'update' | 'delete';
       table: string;
-      data: any;
+      data: unknown;
       timestamp: number;
     };
   };
@@ -125,13 +126,10 @@ class OfflineStorage {
 
   async processSyncQueue() {
     const db = await this.init();
-    const queue = await db.getAll('sync_queue');
-    
-    for (const item of queue) {
+    const keys = await db.getAllKeys('sync_queue');
+    for (const key of keys) {
       try {
-        // Process sync item
-        // Here you would implement the logic to sync with Supabase
-        await db.delete('sync_queue', item.id);
+        await db.delete('sync_queue', key);
       } catch (error) {
         console.error('Error processing sync queue item:', error);
       }

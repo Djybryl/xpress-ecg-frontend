@@ -4,7 +4,7 @@ import { Tables } from '@/lib/supabase';
 
 export type ECGRecord = Tables['ecg_records']['Row'] & {
   files?: Tables['ecg_files']['Row'][];
-  referring_doctor?: Tables['users']['Row'];
+  referring_doctor?: Partial<Tables['users']['Row']>;
   second_opinions?: Tables['second_opinions']['Row'][];
 };
 
@@ -32,7 +32,7 @@ export function useECGRecords(hospitalId?: string) {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setRecords(data || []);
+        setRecords((data || []) as ECGRecord[]);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch ECG records'));
       } finally {

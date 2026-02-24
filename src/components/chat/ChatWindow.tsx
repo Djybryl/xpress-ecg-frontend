@@ -10,8 +10,8 @@ interface Message {
   id: string;
   sender_id: string;
   content: string;
-  created_at: string;
-  sender: Tables['users']['Row'];
+  created_at?: string;
+  sender: Partial<Tables['users']['Row']>;
 }
 
 interface ChatWindowProps {
@@ -42,16 +42,13 @@ export function ChatWindow({ recipientId, ecgRecordId }: ChatWindowProps) {
 
         const { data, error } = await supabase
           .from('messages')
-          .select(`
-            *,
-            sender:users(*)
-          `)
+          .select('*')
           .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
           .eq('recipient_id', recipientId)
           .order('created_at', { ascending: true });
 
         if (error) throw error;
-        setMessages(data);
+        setMessages((data ?? []).map((m) => ({ ...m, sender: { full_name: '' } as Partial<Tables['users']['Row']>, created_at: (m as { created_at?: string }).created_at ?? new Date().toISOString() } as Message)));
       } catch (error) {
         console.error('Error fetching messages:', error);
       } finally {

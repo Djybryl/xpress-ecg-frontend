@@ -87,9 +87,9 @@ export interface ReportData {
   };
 }
 
-export async function generateReport(template: ReportTemplate, data: ReportData) {
-  const { jsPDF } = await import('jspdf');
-  const html2canvas = await import('html2canvas');
+export async function generateReport(template: ReportTemplate, _data: ReportData) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: html2canvas } = await import('html2canvas');
 
   // Create PDF document
   const doc = new jsPDF({
@@ -131,7 +131,7 @@ export async function generateReport(template: ReportTemplate, data: ReportData)
   }
 
   // Convert content to canvas
-  const canvas = await html2canvas(content);
+  const canvas = await (html2canvas as (el: HTMLElement) => Promise<HTMLCanvasElement>)(content);
   const imgData = canvas.toDataURL('image/png');
 
   // Add to PDF
