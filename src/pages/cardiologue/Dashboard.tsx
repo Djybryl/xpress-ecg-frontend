@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/dialog";
 import { useCardiologueStore } from '@/stores/useCardiologueStore';
 import { useAuthContext } from '@/providers/AuthProvider';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import type { CardiologueStats } from '@/types/dashboard';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, differenceInMinutes } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -57,6 +59,7 @@ export function CardiologueDashboard() {
   const { toast } = useToast();
   const { user } = useAuthContext();
   const { getAvailable, getUrgent, getMyCompleted, getCounts, startAnalysis } = useCardiologueStore();
+  const { stats: dashStats, loading: statsLoading } = useDashboardStats<CardiologueStats>();
 
   const pendingECGs = getAvailable(user?.email);
   const urgentECGs = getUrgent();
@@ -255,19 +258,37 @@ export function CardiologueDashboard() {
             </Card>
             <Card className="border-l-4 border-yellow-500 cursor-pointer hover:shadow-sm transition-shadow flex-1" onClick={() => setActiveFilter('all')}>
               <CardContent className="p-1.5 flex items-center justify-between">
-                <div><p className="text-[9px] text-gray-500">En attente</p><p className="text-base font-bold text-gray-900">{counts.available}</p></div>
+                <div>
+                  <p className="text-[9px] text-gray-500">Assignés</p>
+                  {statsLoading
+                    ? <div className="h-6 w-8 bg-gray-200 rounded animate-pulse" />
+                    : <p className="text-base font-bold text-gray-900">{dashStats?.assigned_count ?? counts.available}</p>
+                  }
+                </div>
                 <Clock className="h-3.5 w-3.5 text-yellow-500" />
               </CardContent>
             </Card>
             <Card className="border-l-4 border-green-500 cursor-pointer hover:shadow-sm transition-shadow flex-1" onClick={() => setActiveFilter('today')}>
               <CardContent className="p-1.5 flex items-center justify-between">
-                <div><p className="text-[9px] text-gray-500">Aujourd'hui</p><p className="text-base font-bold text-gray-900">{todayCompleted}</p></div>
+                <div>
+                  <p className="text-[9px] text-gray-500">Aujourd'hui</p>
+                  {statsLoading
+                    ? <div className="h-6 w-8 bg-gray-200 rounded animate-pulse" />
+                    : <p className="text-base font-bold text-gray-900">{dashStats?.completed_today ?? todayCompleted}</p>
+                  }
+                </div>
                 <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
               </CardContent>
             </Card>
             <Card className="border-l-4 border-purple-500 flex-1">
               <CardContent className="p-1.5 flex items-center justify-between">
-                <div><p className="text-[9px] text-gray-500">Tps moyen</p><p className="text-base font-bold text-gray-900">{avgAnalysisTime}<span className="text-[9px] font-normal text-gray-400"> min</span></p></div>
+                <div>
+                  <p className="text-[9px] text-gray-500">2e avis en att.</p>
+                  {statsLoading
+                    ? <div className="h-6 w-8 bg-gray-200 rounded animate-pulse" />
+                    : <p className="text-base font-bold text-gray-900">{dashStats?.pending_second_opinions ?? avgAnalysisTime}</p>
+                  }
+                </div>
                 <BarChart3 className="h-3.5 w-3.5 text-purple-500" />
               </CardContent>
             </Card>

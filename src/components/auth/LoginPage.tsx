@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { useAuthContext } from '@/providers/AuthProvider';
+import { useAuthContext, getLoginErrorMessage } from '@/providers/AuthProvider';
 
 // Afficher les boutons démo par défaut (sauf si explicitement désactivé)
 const IS_DEMO = import.meta.env.VITE_DEMO_MODE !== 'false';
@@ -41,8 +41,8 @@ export function LoginPage() {
         return;
       }
       await login(email, password, rememberMe);
-    } catch {
-      setError('Identifiants incorrects');
+    } catch (err) {
+      setError(getLoginErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

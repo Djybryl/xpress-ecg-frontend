@@ -20,6 +20,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useReportStore } from '@/stores/useReportStore';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import type { DoctorStats } from '@/types/dashboard';
 import { cn } from '@/lib/utils';
 
 // Types
@@ -63,17 +65,20 @@ const mockRequests: ECGRequest[] = [
   },
 ];
 
-const mockStats = {
-  pending: 3,
-  analyzing: 2,
-  completed: 15,
-  total: 20
-};
 
 export function MedecinDashboard() {
   const navigate = useNavigate();
   const [requests] = useState<ECGRequest[]>(mockRequests);
   const { reports, unreadCount, urgentUnreadCount } = useReportStore();
+  const { stats, loading: statsLoading } = useDashboardStats<DoctorStats>();
+
+  // Valeurs affichées — backend si disponible, sinon 0 pendant le chargement
+  const pending   = stats?.pending_count ?? 0;
+  const analyzing = stats
+    ? Math.max(0, stats.total_ecg_sent - stats.pending_count - stats.completed_count)
+    : 0;
+  const completed = stats?.completed_count ?? 0;
+  const total     = stats?.total_ecg_sent ?? 0;
 
   // Rapports non lus
   const unreadReports = reports.filter(r => !r.isRead).slice(0, 3);
@@ -163,7 +168,9 @@ export function MedecinDashboard() {
             <Clock className="h-4 w-4 text-amber-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg font-bold text-amber-700 leading-none">{mockStats.pending}</p>
+            {statsLoading
+              ? <div className="h-5 w-6 bg-amber-200 rounded animate-pulse mb-0.5" />
+              : <p className="text-lg font-bold text-amber-700 leading-none">{pending}</p>}
             <p className="text-[10px] text-amber-600 truncate">En attente</p>
           </div>
         </div>
@@ -173,7 +180,9 @@ export function MedecinDashboard() {
             <AlertCircle className="h-4 w-4 text-blue-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg font-bold text-blue-700 leading-none">{mockStats.analyzing}</p>
+            {statsLoading
+              ? <div className="h-5 w-6 bg-blue-200 rounded animate-pulse mb-0.5" />
+              : <p className="text-lg font-bold text-blue-700 leading-none">{analyzing}</p>}
             <p className="text-[10px] text-blue-600 truncate">En cours</p>
           </div>
         </div>
@@ -183,7 +192,9 @@ export function MedecinDashboard() {
             <CheckCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg font-bold text-emerald-700 leading-none">{mockStats.completed}</p>
+            {statsLoading
+              ? <div className="h-5 w-6 bg-emerald-200 rounded animate-pulse mb-0.5" />
+              : <p className="text-lg font-bold text-emerald-700 leading-none">{completed}</p>}
             <p className="text-[10px] text-emerald-600 truncate">Terminés</p>
           </div>
         </div>
@@ -212,7 +223,9 @@ export function MedecinDashboard() {
             <Calendar className="h-4 w-4 text-slate-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg font-bold text-slate-700 leading-none">{mockStats.total}</p>
+            {statsLoading
+              ? <div className="h-5 w-6 bg-slate-200 rounded animate-pulse mb-0.5" />
+              : <p className="text-lg font-bold text-slate-700 leading-none">{total}</p>}
             <p className="text-[10px] text-slate-600 truncate">Ce mois</p>
           </div>
         </div>

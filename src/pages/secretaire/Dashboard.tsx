@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useECGQueueStore } from '@/stores/useECGQueueStore';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import type { SecretaryStats } from '@/types/dashboard';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -22,6 +24,11 @@ export function SecretaireDashboard() {
   const navigate = useNavigate();
   const { getCounts, getByStatus } = useECGQueueStore();
   const counts = getCounts();
+  const { stats, loading: statsLoading } = useDashboardStats<SecretaryStats>();
+
+  // Priorité aux données backend, fallback sur le store mock
+  const pendingValidation = statsLoading ? counts.received : (stats?.pending_validation ?? counts.received);
+  const totalToday = statsLoading ? 0 : (stats?.total_today ?? 0);
 
   // ECG urgents en attente
   const urgentPending = getByStatus(['received', 'validated']).filter(e => e.urgency === 'urgent');
@@ -62,10 +69,10 @@ export function SecretaireDashboard() {
       {/* Pills stats compactes */}
       <div className="flex items-center gap-2 flex-wrap">
         {[
-          { label: 'À valider', value: counts.received, color: 'border-amber-300 text-amber-700 bg-amber-50', icon: Inbox, onClick: () => navigate('/secretaire/inbox') },
-          { label: 'À assigner', value: counts.validated, color: 'border-blue-300 text-blue-700 bg-blue-50', icon: UserCog, onClick: () => navigate('/secretaire/assign') },
-          { label: 'À envoyer', value: counts.ready_to_send, color: 'border-emerald-300 text-emerald-700 bg-emerald-50', icon: Send, onClick: () => navigate('/secretaire/send-reports') },
-          { label: 'En cours', value: (counts.assigned || 0) + (counts.analyzing || 0), color: 'border-violet-300 text-violet-700 bg-violet-50', icon: Activity },
+          { label: 'À valider', value: pendingValidation, color: 'border-amber-300 text-amber-700 bg-amber-50', skelColor: 'bg-amber-200', loading: false, icon: Inbox, onClick: () => navigate('/secretaire/inbox') },
+          { label: 'À assigner', value: counts.validated, color: 'border-blue-300 text-blue-700 bg-blue-50', skelColor: 'bg-blue-200', loading: false, icon: UserCog, onClick: () => navigate('/secretaire/assign') },
+          { label: 'À envoyer', value: counts.ready_to_send, color: 'border-emerald-300 text-emerald-700 bg-emerald-50', skelColor: 'bg-emerald-200', loading: false, icon: Send, onClick: () => navigate('/secretaire/send-reports') },
+          { label: "Reçus auj.", value: totalToday, color: 'border-violet-300 text-violet-700 bg-violet-50', skelColor: 'bg-violet-200', loading: statsLoading, icon: Activity, onClick: undefined },
         ].map(k => {
           const Icon = k.icon;
           return (
@@ -73,7 +80,9 @@ export function SecretaireDashboard() {
               className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium cursor-pointer hover:opacity-90 transition-opacity', k.color)}
             >
               <Icon className="h-3 w-3" />
-              <span className="font-bold">{k.value}</span>
+              {k.loading
+                ? <span className={cn('inline-block h-3 w-4 rounded animate-pulse', k.skelColor)} />
+                : <span className="font-bold">{k.value}</span>}
               <span className="font-normal opacity-75">{k.label}</span>
             </button>
           );

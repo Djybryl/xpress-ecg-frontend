@@ -45,7 +45,10 @@ function ProtectedRoute({
   children: React.ReactNode;
   allowedRoles?: UserRole[];
 }) {
-  const { user } = useAuthContext();
+  const { user, loading } = useAuthContext();
+
+  // Pendant la vérification auth, ne pas rediriger prématurément
+  if (loading) return null;
 
   if (!user) {
     return <Navigate to="/login" replace />;
