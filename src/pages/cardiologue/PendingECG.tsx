@@ -17,7 +17,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { useCardiologueStore, type CardiologueECG } from '@/stores/useCardiologueStore';
+import { useCardiologueStore } from '@/stores/useCardiologueStore';
+import type { CardiologueECG } from '@/stores/useCardiologueStore';
+import { useEcgList } from '@/hooks/useEcgList';
+import type { EcgRecordItem } from '@/hooks/useEcgList';
+import { api, ApiError } from '@/lib/apiClient';
 import { useAuthContext } from '@/providers/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
@@ -53,16 +57,54 @@ function CountdownBadge({ deadline }: { deadline: string }) {
   );
 }
 
+const STATUS_LABELS: Record<string, { label: string; classes: string }> = {
+  pending:   { label: 'En attente',  classes: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  validated: { label: 'Validé',      classes: 'bg-blue-50 text-blue-700 border-blue-200' },
+  assigned:  { label: 'Assigné',     classes: 'bg-purple-50 text-purple-700 border-purple-200' },
+  analyzing: { label: 'En analyse',  classes: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+};
+
+/** Convertit un EcgRecordItem backend en CardiologueECG pour l'UI */
+function toCardiologueECG(r: EcgRecordItem): CardiologueECG & { backendStatus: string } {
+  return {
+    id:                   r.id,
+    patientName:          r.patient_name,
+    patientId:            r.patient_id ?? r.id.slice(0, 8).toUpperCase(),
+    patientAge:           0,
+    patientGender:        r.gender ?? 'M',
+    referringDoctor:      r.medical_center || 'Médecin référent',
+    referringDoctorEmail: '',
+    hospital:             r.medical_center || '',
+    dateReceived:         r.created_at,
+    dateAssigned:         r.updated_at,
+    status:               'pending' as const,
+    urgency:              r.urgency,
+    clinicalContext:      r.clinical_context ?? '',
+    ecgDate:              r.date,
+    deadline:             r.deadline ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    routedTo:             undefined,
+    analyzedBy:           undefined,
+    backendStatus:        r.status,
+  };
+}
+
 export function PendingECG() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { user } = useAuthContext();
-  const { getAvailable, getMyInProgress, getCounts, startAnalysis, releaseExpiredECGs, requestTimeExtension } = useCardiologueStore();
+  const { getMyInProgress, getCounts, startAnalysis, releaseExpiredECGs, requestTimeExtension } = useCardiologueStore();
 
   // Si on est sur /urgent, pré-filtrer sur les urgents
   const isUrgentRoute = location.pathname === '/cardiologue/urgent';
-  
+
+  // Toutes les demandes non complétées (pending, validated, assigned, analyzing)
+  // Le cardiologue voit tout par défaut ; la secrétaire peut assigner à un cardiologue précis
+  const { records, loading, error, refetch } = useEcgList({});
+  const availableECGs = records
+    .filter(r => r.status !== 'completed')
+    .map(toCardiologueECG) as (CardiologueECG & { backendStatus: string })[];
+
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>(isUrgentRoute ? 'urgent' : 'all');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -70,21 +112,20 @@ export function PendingECG() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  // Libérer les ECG expirés toutes les 5 secondes
+  // Libérer les ECG expirés toutes les 5 secondes (store local pour le timer)
   useEffect(() => {
     const id = setInterval(() => releaseExpiredECGs(), 5000);
     return () => clearInterval(id);
   }, [releaseExpiredECGs]);
 
-  const availableECGs = getAvailable(user?.email);
+  // ECG en cours d'analyse pour CE cardiologue (timer local dans le store)
   const myInProgress = user?.email ? getMyInProgress(user.email) : [];
   const counts = getCounts(user?.email);
 
   const filteredECGs = availableECGs.filter(ecg => {
-    const matchesSearch = 
+    const matchesSearch =
       ecg.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ecg.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ecg.referringDoctor.toLowerCase().includes(searchTerm.toLowerCase());
+      ecg.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesUrgency = urgencyFilter === 'all' || ecg.urgency === urgencyFilter;
     return matchesSearch && matchesUrgency;
   });
@@ -95,14 +136,20 @@ export function PendingECG() {
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [searchTerm, urgencyFilter]);
 
-  const handleStartAnalysis = (ecg: CardiologueECG) => {
-    if (!user?.email || !user?.name) return;
-    startAnalysis(ecg.id, user.email, user.name);
-    toast({
-      title: "ECG pris en charge",
-      description: `Vous avez 15 minutes pour interpréter l'ECG de ${ecg.patientName}.`
-    });
-    navigate(`/cardiologue/analyze/${ecg.id}`);
+  const handleStartAnalysis = async (ecg: CardiologueECG) => {
+    if (!user?.id || !user?.email || !user?.name) return;
+    try {
+      // Assigner au cardiologue puis démarrer l'analyse sur le backend
+      await api.post(`/ecg-records/${ecg.id}/assign`, { cardiologistId: user.id });
+      await api.post(`/ecg-records/${ecg.id}/start-analysis`);
+      // Mettre à jour le store local pour le timer countdown
+      startAnalysis(ecg.id, user.email, user.name);
+      refetch();
+      toast({ title: "ECG pris en charge", description: `Vous avez 15 minutes pour interpréter l'ECG de ${ecg.patientName}.` });
+      navigate(`/cardiologue/analyze/${ecg.id}`);
+    } catch (err) {
+      toast({ title: "Erreur", description: err instanceof ApiError ? err.message : "Impossible de démarrer l'analyse.", variant: "destructive" });
+    }
   };
 
   const handleExtend = (ecgId: string) => {
@@ -124,11 +171,11 @@ export function PendingECG() {
         </div>
         <div className="flex items-center gap-2 text-sm">
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-medium">
-            <Inbox className="h-3.5 w-3.5" />{counts.available} dispo
+            <Inbox className="h-3.5 w-3.5" />{loading ? '…' : availableECGs.length} dispo
           </span>
-          {counts.urgent > 0 && (
+          {availableECGs.filter(e => e.urgency === 'urgent').length > 0 && (
             <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 font-medium animate-pulse">
-              <AlertCircle className="h-3.5 w-3.5" />{counts.urgent} urgent{counts.urgent > 1 ? 's' : ''}
+              <AlertCircle className="h-3.5 w-3.5" />{availableECGs.filter(e => e.urgency === 'urgent').length} urgent{availableECGs.filter(e => e.urgency === 'urgent').length > 1 ? 's' : ''}
             </span>
           )}
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
@@ -139,6 +186,14 @@ export function PendingECG() {
           </span>
         </div>
       </div>
+
+      {/* Erreur de chargement */}
+      {!loading && error && (
+        <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={refetch} className="ml-4 h-7 text-xs">Réessayer</Button>
+        </div>
+      )}
 
       {/* Mes ECG en cours avec compte à rebours */}
       {myInProgress.length > 0 && (
@@ -223,11 +278,21 @@ export function PendingECG() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredECGs.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mr-3" />
+              Chargement des ECG disponibles…
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 m-4">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={refetch} className="ml-4 h-7 text-xs">Réessayer</Button>
+            </div>
+          ) : filteredECGs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Inbox className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p className="font-medium">Aucun ECG disponible</p>
-              <p className="text-sm">Les nouveaux ECG apparaîtront ici automatiquement</p>
+              <p className="font-medium">Aucune demande ECG en cours</p>
+              <p className="text-sm text-gray-400 mt-1">Les nouvelles demandes des médecins apparaîtront ici</p>
             </div>
           ) : (
             <Table>
@@ -238,6 +303,7 @@ export function PendingECG() {
                   <TableHead className="py-2">Patient</TableHead>
                   <TableHead className="py-2">Médecin / Établissement</TableHead>
                   <TableHead className="py-2">Reçu</TableHead>
+                  <TableHead className="py-2">Statut</TableHead>
                   <TableHead className="py-2">Urgence</TableHead>
                   <TableHead className="py-2 text-right">Actions</TableHead>
                 </TableRow>
@@ -280,6 +346,16 @@ export function PendingECG() {
                         <p className="text-xs text-gray-400">{formatDistanceToNow(parseISO(ecg.dateReceived), { addSuffix: true, locale: fr })}</p>
                       </TableCell>
                       <TableCell className="py-1.5">
+                        {(() => {
+                          const s = STATUS_LABELS[(ecg as CardiologueECG & { backendStatus: string }).backendStatus] ?? STATUS_LABELS['pending'];
+                          return (
+                            <Badge variant="outline" className={`text-[10px] px-1.5 ${s.classes}`}>
+                              {s.label}
+                            </Badge>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell className="py-1.5">
                         {ecg.urgency === 'urgent' ? (
                           <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 animate-pulse">
                             <AlertCircle className="h-2.5 w-2.5 mr-0.5" />URGENT
@@ -306,7 +382,7 @@ export function PendingECG() {
 
                     {expandedRow === ecg.id && (
                       <TableRow className="bg-gray-50">
-                        <TableCell colSpan={7} className="p-4">
+                        <TableCell colSpan={8} className="p-4">
                           <div className="grid grid-cols-3 gap-6">
                             <div>
                               <h4 className="font-semibold text-sm mb-2">Informations Patient</h4>

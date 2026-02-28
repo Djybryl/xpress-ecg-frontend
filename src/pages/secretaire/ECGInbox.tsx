@@ -45,16 +45,44 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useECGQueueStore, type ECGQueueItem } from '@/stores/useECGQueueStore';
+import { useECGQueueStore } from '@/stores/useECGQueueStore';
+import type { ECGQueueItem } from '@/stores/useECGQueueStore';
+import { useEcgList } from '@/hooks/useEcgList';
+import type { EcgRecordItem } from '@/hooks/useEcgList';
+import { api, ApiError } from '@/lib/apiClient';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+/** Convertit un EcgRecordItem backend en ECGQueueItem pour l'UI */
+function toQueueItem(r: EcgRecordItem): ECGQueueItem {
+  return {
+    id:                   r.id,
+    patientName:          r.patient_name,
+    patientId:            r.patient_id ?? r.id.slice(0, 8).toUpperCase(),
+    patientGender:        r.gender ?? 'M',
+    patientAge:           0,
+    referringDoctor:      r.medical_center || 'Médecin référent',
+    referringDoctorEmail: '',
+    hospital:             r.medical_center || '',
+    dateReceived:         r.created_at,
+    status:               'received' as const,
+    urgency:              r.urgency,
+    ecgDate:              r.date,
+    clinicalContext:      r.clinical_context ?? undefined,
+  };
+}
+
 export function ECGInbox() {
   const { toast } = useToast();
-  const { queue, getByStatus, validateECG, getCounts } = useECGQueueStore();
-  
+  // Store conservé pour la compatibilité (pages d'assignation, etc.)
+  const { queue } = useECGQueueStore();
+  void queue;
+
+  // Données réelles depuis le backend (ECG en attente de validation = status pending)
+  const { records, loading, error, refetch } = useEcgList({ status: 'pending' });
+
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -66,9 +94,8 @@ export function ECGInbox() {
   const [rejectReason, setRejectReason] = useState('');
   const [itemToReject, setItemToReject] = useState<string | null>(null);
 
-  // ECG en attente de validation
-  const receivedECGs = getByStatus('received');
-  const counts = getCounts();
+  // ECG en attente de validation (depuis API)
+  const receivedECGs = records.map(toQueueItem);
 
   // Filtrage
   const filteredECGs = receivedECGs.filter(ecg => {
@@ -105,21 +132,25 @@ export function ECGInbox() {
     }
   };
 
-  const handleValidate = (id: string) => {
-    validateECG(id);
-    toast({
-      title: "ECG validé",
-      description: `L'ECG ${id} a été validé et peut maintenant être assigné.`
-    });
+  const handleValidate = async (id: string) => {
+    try {
+      await api.post(`/ecg-records/${id}/validate`);
+      refetch();
+      toast({ title: "ECG validé", description: `L'ECG a été validé et peut maintenant être assigné.` });
+    } catch (err) {
+      toast({ title: "Erreur", description: err instanceof ApiError ? err.message : "Impossible de valider.", variant: "destructive" });
+    }
   };
 
-  const handleBulkValidate = () => {
-    selectedItems.forEach(id => validateECG(id));
-    toast({
-      title: "ECG validés",
-      description: `${selectedItems.length} ECG ont été validés.`
-    });
-    setSelectedItems([]);
+  const handleBulkValidate = async () => {
+    try {
+      await Promise.all(selectedItems.map(id => api.post(`/ecg-records/${id}/validate`)));
+      refetch();
+      toast({ title: "ECG validés", description: `${selectedItems.length} ECG ont été validés.` });
+      setSelectedItems([]);
+    } catch (err) {
+      toast({ title: "Erreur", description: err instanceof ApiError ? err.message : "Erreur lors de la validation groupée.", variant: "destructive" });
+    }
   };
 
   const handleReject = (id: string) => {
@@ -147,12 +178,20 @@ export function ECGInbox() {
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Inbox className="h-5 w-5 text-indigo-600" />
           Réception ECG
-          {counts.received > 0 && <Badge variant="secondary" className="text-xs">{counts.received}</Badge>}
+          {receivedECGs.length > 0 && <Badge variant="secondary" className="text-xs">{receivedECGs.length}</Badge>}
         </h1>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => window.location.reload()} title="Actualiser">
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={refetch} title="Actualiser">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+
+      {/* Erreur de chargement */}
+      {!loading && error && (
+        <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={refetch} className="ml-4 h-7 text-xs">Réessayer</Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="border-b p-0">
@@ -180,7 +219,12 @@ export function ECGInbox() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filteredECGs.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mr-3" />
+              Chargement des ECG en attente…
+            </div>
+          ) : filteredECGs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Inbox className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p className="font-medium">Aucun ECG en attente</p>

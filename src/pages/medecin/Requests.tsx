@@ -64,6 +64,9 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthContext } from "@/providers/AuthProvider";
+import { useEcgList } from "@/hooks/useEcgList";
+import type { EcgRecordItem } from "@/hooks/useEcgList";
 import { cn } from '@/lib/utils';
 
 interface ECGRequest {
@@ -71,10 +74,8 @@ interface ECGRequest {
   patient_name: string;
   patient_id?: string;
   patient_gender: 'M' | 'F';
-  patient_age: number;
+  patient_age?: number;
   date_sent: string;
-  date_received?: string;
-  date_analyzing?: string;
   date_completed?: string;
   status: 'pending' | 'received' | 'analyzing' | 'completed';
   urgency: 'normal' | 'urgent';
@@ -83,112 +84,30 @@ interface ECGRequest {
   ecg_date: string;
 }
 
-// Données mockées enrichies
-const mockRequests: ECGRequest[] = [
-  {
-    id: 'ECG-2024-0412',
-    patient_name: 'Sophie Martin',
-    patient_id: 'PAT-006',
-    patient_gender: 'F',
-    patient_age: 45,
-    date_sent: '2024-12-25T14:30:00',
-    status: 'pending',
-    urgency: 'urgent',
-    clinical_context: 'Douleur thoracique atypique, facteurs de risque cardiovasculaires',
-    ecg_date: '2024-12-25'
-  },
-  {
-    id: 'ECG-2024-0411',
-    patient_name: 'Lucas Bernard',
-    patient_id: 'PAT-007',
-    patient_gender: 'M',
-    patient_age: 62,
-    date_sent: '2024-12-25T11:00:00',
-    date_received: '2024-12-25T11:05:00',
-    status: 'received',
-    urgency: 'normal',
-    clinical_context: 'Bilan pré-opératoire',
-    ecg_date: '2024-12-25'
-  },
-  {
-    id: 'ECG-2024-0409',
-    patient_name: 'Pierre Dupont',
-    patient_id: 'PAT-001',
-    patient_gender: 'M',
-    patient_age: 58,
-    date_sent: '2024-12-25T08:30:00',
-    date_received: '2024-12-25T08:35:00',
-    date_analyzing: '2024-12-25T09:00:00',
-    status: 'analyzing',
-    urgency: 'normal',
-    cardiologist: 'Dr. Sophie Bernard',
-    clinical_context: 'Suivi annuel, antécédent HTA',
-    ecg_date: '2024-12-25'
-  },
-  {
-    id: 'ECG-2024-0408',
-    patient_name: 'Marie Laurent',
-    patient_id: 'PAT-002',
-    patient_gender: 'F',
-    patient_age: 35,
-    date_sent: '2024-12-24T16:00:00',
-    date_received: '2024-12-24T16:05:00',
-    date_analyzing: '2024-12-24T16:30:00',
-    status: 'analyzing',
-    urgency: 'urgent',
-    cardiologist: 'Dr. Sophie Bernard',
-    clinical_context: 'Palpitations fréquentes depuis 1 semaine',
-    ecg_date: '2024-12-24'
-  },
-  {
-    id: 'ECG-2024-0407',
-    patient_name: 'Jean-Paul Mercier',
-    patient_id: 'PAT-003',
-    patient_gender: 'M',
-    patient_age: 71,
-    date_sent: '2024-12-24T14:20:00',
-    date_received: '2024-12-24T14:25:00',
-    date_analyzing: '2024-12-24T15:00:00',
-    date_completed: '2024-12-24T16:45:00',
-    status: 'completed',
-    urgency: 'normal',
-    cardiologist: 'Dr. Sophie Bernard',
-    clinical_context: 'Contrôle après ajustement traitement',
-    ecg_date: '2024-12-24'
-  },
-  {
-    id: 'ECG-2024-0406',
-    patient_name: 'Élise Moreau',
-    patient_id: 'PAT-004',
-    patient_gender: 'F',
-    patient_age: 28,
-    date_sent: '2024-12-24T11:00:00',
-    date_received: '2024-12-24T11:10:00',
-    date_analyzing: '2024-12-24T12:00:00',
-    date_completed: '2024-12-24T13:30:00',
-    status: 'completed',
-    urgency: 'normal',
-    cardiologist: 'Dr. François Dubois',
-    clinical_context: 'Bilan sportif',
-    ecg_date: '2024-12-24'
-  },
-  {
-    id: 'ECG-2024-0405',
-    patient_name: 'Robert Petit',
-    patient_id: 'PAT-005',
-    patient_gender: 'M',
-    patient_age: 76,
-    date_sent: '2024-12-23T16:30:00',
-    date_received: '2024-12-23T16:35:00',
-    date_analyzing: '2024-12-23T17:00:00',
-    date_completed: '2024-12-23T18:00:00',
-    status: 'completed',
-    urgency: 'urgent',
-    cardiologist: 'Dr. Sophie Bernard',
-    clinical_context: 'Dyspnée d\'effort récente',
-    ecg_date: '2024-12-23'
-  },
-];
+/** Convertit le statut backend en statut frontend */
+function mapStatus(s: EcgRecordItem['status']): ECGRequest['status'] {
+  if (s === 'validated' || s === 'assigned') return 'received';
+  if (s === 'analyzing')  return 'analyzing';
+  if (s === 'completed')  return 'completed';
+  return 'pending';
+}
+
+/** Convertit un EcgRecordItem backend en ECGRequest frontend */
+function toECGRequest(r: EcgRecordItem): ECGRequest {
+  return {
+    id:               r.id,
+    patient_name:     r.patient_name,
+    patient_id:       r.patient_id ?? undefined,
+    patient_gender:   r.gender ?? 'M',
+    date_sent:        r.created_at,
+    date_completed:   r.analyzed_at ?? undefined,
+    status:           mapStatus(r.status),
+    urgency:          r.urgency,
+    clinical_context: r.clinical_context ?? undefined,
+    ecg_date:         r.date,
+  };
+}
+
 
 // Composant Timeline
 function StatusTimeline({ request }: { request: ECGRequest }) {
@@ -307,7 +226,15 @@ function getWaitingTime(dateSent: string, status: string): { text: string; isLon
 export function RequestsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+  const { user } = useAuthContext();
+
+  const { records: rawRecords, loading, error, refetch } = useEcgList(
+    user?.id ? { referring_doctor_id: user.id } : {},
+  );
+
+  // Conversion des enregistrements backend en format frontend
+  const requests: ECGRequest[] = rawRecords.map(toECGRequest);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -318,8 +245,8 @@ export function RequestsPage() {
   const itemsPerPage = 10;
 
   // Filtrage
-  const filteredRequests = mockRequests.filter(request => {
-    const matchesSearch = 
+  const filteredRequests = requests.filter(request => {
+    const matchesSearch =
       request.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
@@ -333,10 +260,10 @@ export function RequestsPage() {
 
   // Stats
   const stats = {
-    pending: mockRequests.filter(r => r.status === 'pending').length,
-    received: mockRequests.filter(r => r.status === 'received').length,
-    analyzing: mockRequests.filter(r => r.status === 'analyzing').length,
-    completed: mockRequests.filter(r => r.status === 'completed').length,
+    pending:   requests.filter(r => r.status === 'pending').length,
+    received:  requests.filter(r => r.status === 'received').length,
+    analyzing: requests.filter(r => r.status === 'analyzing').length,
+    completed: requests.filter(r => r.status === 'completed').length,
   };
 
   const toggleRow = (id: string) => {
@@ -438,15 +365,29 @@ export function RequestsPage() {
         </DropdownMenu>
       </div>
 
+      {/* État chargement / erreur */}
+      {loading && (
+        <div className="flex items-center justify-center py-12 text-gray-400">
+          <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mr-3" />
+          Chargement des demandes…
+        </div>
+      )}
+      {!loading && error && (
+        <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={refetch} className="ml-4 h-7 text-xs">Réessayer</Button>
+        </div>
+      )}
+
       {/* Tableau des demandes */}
-      <Card>
+      {!loading && !error && <Card>
         <CardHeader className="border-b p-0">
           {/* Barre unique : onglets + recherche */}
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
             <Tabs defaultValue="all" onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }} className="flex-1">
               <TabsList className="h-8 bg-transparent p-0 gap-1">
                 {[
-                  { value: 'all',       label: 'Tout',     count: mockRequests.length, icon: null },
+                  { value: 'all',       label: 'Tout',     count: requests.length, icon: null },
                   { value: 'pending',   label: 'Attente',  count: stats.pending,       icon: Clock },
                   { value: 'received',  label: 'Reçu',     count: stats.received,      icon: Inbox },
                   { value: 'analyzing', label: 'Analyse',  count: stats.analyzing,     icon: Activity },
@@ -514,7 +455,7 @@ export function RequestsPage() {
                           )}
                         </div>
                         <p className="text-sm text-gray-500">
-                          {request.id} • {request.patient_gender === 'M' ? 'H' : 'F'}, {request.patient_age} ans
+                          {request.id} • {request.patient_gender === 'M' ? 'H' : 'F'}{request.patient_age ? `, ${request.patient_age} ans` : ''}
                         </p>
                       </div>
 
@@ -610,7 +551,7 @@ export function RequestsPage() {
                             <p><span className="text-gray-500">Nom :</span> {request.patient_name}</p>
                             <p><span className="text-gray-500">ID :</span> {request.patient_id || '-'}</p>
                             <p><span className="text-gray-500">Sexe :</span> {request.patient_gender === 'M' ? 'Masculin' : 'Féminin'}</p>
-                            <p><span className="text-gray-500">Âge :</span> {request.patient_age} ans</p>
+                            <p><span className="text-gray-500">Âge :</span> {request.patient_age ? `${request.patient_age} ans` : '—'}</p>
                           </div>
                         </div>
 
@@ -732,7 +673,7 @@ export function RequestsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Dialog de relance */}
       <Dialog open={showRelanceDialog} onOpenChange={setShowRelanceDialog}>

@@ -65,6 +65,8 @@ import {
 } from '@/stores/useCardiologueStore';
 import { useAuthContext } from '@/providers/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
+import { api } from '@/lib/apiClient';
+import type { EcgRecordItem } from '@/hooks/useEcgList';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -118,6 +120,8 @@ export function AnalyzeECG() {
   const { user } = useAuthContext();
 
   const [ecg, setEcg] = useState(ecgId ? getById(ecgId) : null);
+  const [backendLoading, setBackendLoading] = useState(!ecg && !!ecgId);
+  const [fileType, setFileType] = useState<'image' | 'pdf' | 'none'>('none');
   const [zoomLevel, setZoomLevel] = useState(100);
   const [gridVisible, setGridVisible] = useState(true);
   const [activeTool, setActiveTool] = useState<'move' | 'calipers'>('move');
@@ -166,6 +170,60 @@ export function AnalyzeECG() {
 
   const [interpretation, setInterpretation] = useState(ecg?.interpretation?.conclusion || '');
   const [charCount, setCharCount] = useState(0);
+
+  // Chargement depuis le backend si l'ECG n'est pas dans le store Zustand
+  useEffect(() => {
+    if (!ecgId || ecg) return;
+
+    setBackendLoading(true);
+    api.get<EcgRecordItem & { files?: { id: string; filename: string; file_url: string | null; file_type: string }[] }>(
+      `/ecg-records/${ecgId}`
+    )
+      .then(async (data) => {
+        const mapped = {
+          id:                   data.id,
+          patientName:          data.patient_name,
+          patientId:            data.patient_id ?? data.id.slice(0, 8).toUpperCase(),
+          patientAge:           0,
+          patientGender:        (data.gender ?? 'M') as 'M' | 'F',
+          referringDoctor:      data.medical_center || 'Médecin référent',
+          referringDoctorEmail: '',
+          hospital:             data.medical_center || '',
+          dateReceived:         data.created_at,
+          dateAssigned:         data.updated_at,
+          status:               'analyzing' as const,
+          urgency:              data.urgency,
+          clinicalContext:      data.clinical_context ?? '',
+          ecgDate:              data.date,
+          deadline:             data.deadline ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          ecgImageUrl:          undefined as string | undefined,
+        };
+        setEcg(mapped);
+
+        // Récupérer l'URL signée du premier fichier ECG
+        if (data.files && data.files.length > 0) {
+          const file = data.files[0];
+          const ext = (file.filename ?? '').split('.').pop()?.toLowerCase() ?? '';
+          const isPdf = ext === 'pdf' || file.file_type === 'PDF';
+          setFileType(isPdf ? 'pdf' : 'image');
+
+          try {
+            const { url } = await api.get<{ url: string; filename: string }>(`/ecg-files/${file.id}/download`);
+            setEcg(prev => prev ? { ...prev, ecgImageUrl: url } : prev);
+          } catch {
+            if (file.file_url) {
+              setEcg(prev => prev ? { ...prev, ecgImageUrl: file.file_url ?? undefined } : prev);
+            }
+          }
+        }
+      })
+      .catch(() => {
+        toast({ title: 'ECG introuvable', description: 'Impossible de charger cet ECG.', variant: 'destructive' });
+        navigate('/cardiologue/pending');
+      })
+      .finally(() => setBackendLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ecgId]);
 
   // Simulation IA au chargement
   useEffect(() => {
@@ -470,8 +528,11 @@ export function AnalyzeECG() {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <Activity className="h-16 w-16 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500 text-lg">Chargement de l'ECG...</p>
+          <Activity className="h-16 w-16 mx-auto mb-4 text-indigo-300 animate-pulse" />
+          <p className="text-gray-600 text-lg font-medium">
+            {backendLoading ? 'Chargement de l\'ECG depuis le serveur…' : 'ECG en cours de chargement…'}
+          </p>
+          <p className="text-gray-400 text-sm mt-1">Veuillez patienter</p>
         </div>
       </div>
     );
@@ -737,8 +798,17 @@ export function AnalyzeECG() {
           }}
         >
           <div className="p-4 w-full h-full">
-            {/* ECG : image unique (JPEG/PNG) ou grille 12 dérivations */}
-            {ecg?.ecgImageUrl ? (
+            {/* ECG : PDF, image (JPEG/PNG) ou tracé simulé 12 dérivations */}
+            {ecg?.ecgImageUrl && fileType === 'pdf' ? (
+              <div className="w-full h-full min-h-[600px] rounded border border-gray-200 overflow-hidden">
+                <embed
+                  src={ecg.ecgImageUrl}
+                  type="application/pdf"
+                  className="w-full h-full min-h-[600px]"
+                  style={{ minHeight: 'calc(100vh - 200px)' }}
+                />
+              </div>
+            ) : ecg?.ecgImageUrl ? (
               <div style={{ transform: 'none' }}>
                 {/* Légende des dérivations (au-dessus de l'image) */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 px-3 mb-2 bg-slate-50 rounded border border-slate-200">

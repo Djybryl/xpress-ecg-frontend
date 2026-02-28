@@ -123,7 +123,11 @@ async function request<T>(
   const headers: Record<string, string> = {};
   const token = tokenStorage.getAccess();
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (body) headers['Content-Type'] = 'application/json';
+  // Toujours mettre Content-Type pour POST/PUT/PATCH (même sans body)
+  // car le middleware backend le valide sur ces méthodes
+  if (!formData && ['POST', 'PUT', 'PATCH'].includes(method)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   let res: Response;
   try {
@@ -131,6 +135,9 @@ async function request<T>(
       method,
       headers,
       body: formData ?? (body ? JSON.stringify(body) : undefined),
+      // Désactiver le cache navigateur pour les appels API
+      // (évite les 304 "Not Modified" sur les listes dynamiques)
+      cache: 'no-store',
     });
   } catch {
     throw new ApiError(0, 'SERVER_UNREACHABLE', 'Serveur non disponible — vérifiez que le backend est démarré');

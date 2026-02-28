@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload,
@@ -6,6 +6,7 @@ import {
   User,
   Calendar,
   AlertCircle,
+  AlertTriangle,
   X,
   Check,
   ArrowLeft,
@@ -16,7 +17,8 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
-  Trash2
+  Trash2,
+  Save,
 } from 'lucide-react';
 import {
   Card,
@@ -47,7 +49,45 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { usePatientStore, type Patient } from "@/stores/usePatientStore";
+import { useAuthContext } from "@/providers/AuthProvider";
+import { api, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
+
+const DRAFT_KEY = 'ecg-new-draft';
+
+interface DraftData {
+  savedAt: string;
+  patient: {
+    id: string;
+    name: string;
+    dateOfBirth: string;
+    gender: 'M' | 'F';
+    phone?: string;
+    email?: string;
+    ecgCount: number;
+  } | null;
+  ecgDate: string;
+  urgency: 'normal' | 'urgent';
+  clinicalContext: string;
+  fileNames: string[];
+}
+
+function loadDraft(): DraftData | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as DraftData) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(data: DraftData) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+}
 
 // Formats ECG acceptés (specs métier)
 const ACCEPTED_FORMATS = {
@@ -108,6 +148,7 @@ type Step = 1 | 2 | 3;
 export function NewECGPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuthContext();
   const { patients, searchPatients, addPatient } = usePatientStore();
   
   const [currentStep, setCurrentStep] = useState<Step>(1);
@@ -117,7 +158,9 @@ export function NewECGPage() {
   const [previewZoom, setPreviewZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
-  
+  const [draftBanner, setDraftBanner] = useState<DraftData | null>(() => loadDraft());
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [formData, setFormData] = useState<FormData>({
     patient: null,
     isNewPatient: false,
@@ -134,6 +177,63 @@ export function NewECGPage() {
     urgency: 'normal',
     clinicalContext: '',
   });
+
+  // Autosave du brouillon (champs texte uniquement, pas les fichiers)
+  useEffect(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    const hasContent = formData.patient !== null
+      || formData.clinicalContext.trim().length > 0
+      || formData.files.length > 0;
+
+    if (!hasContent) return;
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveDraft({
+        savedAt: new Date().toISOString(),
+        patient: formData.patient ? {
+          id:          formData.patient.id,
+          name:        formData.patient.name,
+          dateOfBirth: formData.patient.dateOfBirth,
+          gender:      formData.patient.gender,
+          phone:       formData.patient.phone,
+          email:       formData.patient.email,
+          ecgCount:    formData.patient.ecgCount,
+        } : null,
+        ecgDate:         formData.ecgDate,
+        urgency:         formData.urgency,
+        clinicalContext: formData.clinicalContext,
+        fileNames:       formData.files.map(f => f.name),
+      });
+    }, 1500);
+
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [formData.patient, formData.ecgDate, formData.urgency, formData.clinicalContext, formData.files]);
+
+  // Restaurer un brouillon
+  const resumeDraft = (draft: DraftData) => {
+    setFormData(prev => ({
+      ...prev,
+      patient: draft.patient ? {
+        id:          draft.patient.id,
+        name:        draft.patient.name,
+        dateOfBirth: draft.patient.dateOfBirth,
+        gender:      draft.patient.gender,
+        phone:       draft.patient.phone,
+        email:       draft.patient.email,
+        ecgCount:    draft.patient.ecgCount,
+      } as Patient : null,
+      ecgDate:         draft.ecgDate,
+      urgency:         draft.urgency,
+      clinicalContext: draft.clinicalContext,
+    }));
+    setDraftBanner(null);
+    toast({ title: 'Brouillon restauré', description: 'Les fichiers ECG doivent être re-joints manuellement.' });
+  };
+
+  const discardDraft = () => {
+    clearDraft();
+    setDraftBanner(null);
+  };
 
   const filteredPatients = searchQuery ? searchPatients(searchQuery) : patients.slice(0, 5);
 
@@ -297,17 +397,48 @@ export function NewECGPage() {
     }
 
     setIsSubmitting(true);
-    
-    // Simulation d'envoi
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "ECG envoyé avec succès ! 🎉",
-      description: `Demande d'interprétation pour ${formData.patient.name} transmise.`,
-    });
-    
-    setIsSubmitting(false);
-    navigate('/medecin/requests');
+
+    try {
+      // Construire le FormData multipart (champs + premier fichier)
+      const fd = new FormData();
+      fd.append('patient_name',    formData.patient.name);
+      // patient_id n'est pas envoyé : les patients du store local ne sont pas
+      // encore dans la table `patients` de Supabase (UUID requis).
+      // Quand la gestion des patients sera connectée au backend, on pourra
+      // ajouter : fd.append('patient_id', formData.patient.dbId);
+      fd.append('gender',          formData.patient.gender);
+      fd.append('date',            formData.ecgDate);
+      fd.append('urgency',         formData.urgency);
+      fd.append('medical_center',  'Cabinet médical');
+      if (formData.clinicalContext) fd.append('clinical_context', formData.clinicalContext);
+      if (user?.hospitalId)        fd.append('hospital_id', user.hospitalId);
+      // Premier fichier attaché à la création
+      fd.append('file', formData.files[0]);
+
+      const created = await api.upload<{ id: string }>('/ecg-records', fd);
+
+      // Fichiers supplémentaires (2e, 3e…)
+      for (let i = 1; i < formData.files.length; i++) {
+        const fd2 = new FormData();
+        fd2.append('file', formData.files[i]);
+        await api.upload(`/ecg-records/${created.id}/files`, fd2);
+      }
+
+      clearDraft();
+      toast({
+        title: "ECG envoyé avec succès !",
+        description: `Demande d'interprétation pour ${formData.patient.name} transmise.`,
+      });
+      navigate('/medecin/requests');
+    } catch (err) {
+      toast({
+        title: "Erreur lors de l'envoi",
+        description: err instanceof ApiError ? err.message : "Une erreur inattendue s'est produite.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Calcul de l'âge
@@ -337,6 +468,31 @@ export function NewECGPage() {
         <h1 className="text-2xl font-bold text-gray-900">Nouvelle demande d'interprétation ECG</h1>
         <p className="text-gray-500">Suivez les étapes pour envoyer votre ECG</p>
       </div>
+
+      {/* Bannière brouillon */}
+      {draftBanner && (
+        <div className="mb-4 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-900 text-sm">Brouillon non envoyé</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Brouillon du {new Date(draftBanner.savedAt).toLocaleString('fr-FR')}
+              {draftBanner.patient && ` — Patient : ${draftBanner.patient.name}`}
+              {draftBanner.fileNames.length > 0 && ` — ${draftBanner.fileNames.length} fichier(s) à re-joindre`}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" variant="outline" className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-100"
+              onClick={() => resumeDraft(draftBanner)}>
+              <Save className="h-3 w-3 mr-1" />Reprendre
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-600 hover:text-red-600"
+              onClick={discardDraft}>
+              <X className="h-3 w-3 mr-1" />Ignorer
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Indicateur d'étapes */}
       <div className="mb-8">
