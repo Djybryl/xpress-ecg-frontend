@@ -173,7 +173,7 @@ export function ReportSending() {
               <>
                 <div className="relative ml-2">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                  <Input placeholder="Patient, ID…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs w-40" />
+                  <Input placeholder="Patient, Référence…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-8 h-8 text-xs w-40" />
                 </div>
                 <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
                   <SelectTrigger className="h-8 w-28 text-xs">
@@ -205,7 +205,7 @@ export function ReportSending() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead>ID ECG</TableHead>
+                    <TableHead>Référence</TableHead>
                     <TableHead>Patient</TableHead>
                     <TableHead>Médecin</TableHead>
                     <TableHead>Envoyé</TableHead>
@@ -242,7 +242,7 @@ export function ReportSending() {
                     />
                   </TableHead>
                   <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>ID ECG</TableHead>
+                  <TableHead>Référence</TableHead>
                   <TableHead>Patient</TableHead>
                   <TableHead>Médecin référent</TableHead>
                   <TableHead>Cardiologue</TableHead>

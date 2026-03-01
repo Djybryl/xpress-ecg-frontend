@@ -160,7 +160,7 @@ export function HistoryPage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <Input
-                placeholder="Patient, ID ECG, établissement…"
+                placeholder="Patient, Référence, établissement…"
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="pl-8 h-8 text-xs w-48"
