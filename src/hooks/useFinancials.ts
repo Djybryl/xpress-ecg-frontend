@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import api from '@/lib/apiClient';
+import { api } from '@/lib/apiClient';
 
 // ─── Types (miroir du backend) ────────────────────────────────────────────────
 

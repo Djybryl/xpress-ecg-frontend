@@ -112,6 +112,16 @@ export function AppRouter() {
           }
         />
 
+        {/* Cardiologue — Vue rapport plein écran */}
+        <Route
+          path="/cardiologue/reports/:reportId"
+          element={
+            <ProtectedRoute allowedRoles={['cardiologue']}>
+              <ReportViewPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Médecin */}
         <Route
           path="/medecin"
@@ -147,6 +157,16 @@ export function AppRouter() {
           <Route path="patients" element={<PatientsSecretaire />} />
           <Route path="archives" element={<ArchivesSecretaire />} />
         </Route>
+
+        {/* Secrétaire — Vue rapport plein écran (sans layout pour impression) */}
+        <Route
+          path="/secretaire/reports/:reportId"
+          element={
+            <ProtectedRoute allowedRoles={['secretaire']}>
+              <ReportViewPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Admin */}
         <Route

@@ -35,6 +35,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthContext } from '@/providers/AuthProvider';
 import { api, ApiError } from '@/lib/apiClient';
 import type { ReportItem } from '@/hooks/useReportList';
 import { cn } from '@/lib/utils';
@@ -93,10 +94,18 @@ function toDisplay(r: ReportItem): ReportDisplay {
   };
 }
 
+const BACK_URL: Record<string, string> = {
+  medecin:    '/medecin/reports',
+  cardiologue: '/cardiologue/completed',
+  secretaire: '/secretaire/send-reports',
+};
+
 export function ReportViewPage() {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuthContext();
+  const backUrl = BACK_URL[user?.role ?? 'medecin'] ?? '/medecin/reports';
 
   const [report, setReport] = useState<ReportDisplay | null>(null);
   const [loadingReport, setLoadingReport] = useState(true);
@@ -137,8 +146,8 @@ export function ReportViewPage() {
     return (
       <div className="p-6 text-center space-y-3">
         <p className="text-gray-500">{loadError ?? 'Rapport non trouvé'}</p>
-        <Button variant="outline" onClick={() => navigate('/medecin/reports')}>
-          Retour aux rapports
+        <Button variant="outline" onClick={() => navigate(backUrl)}>
+          Retour
         </Button>
       </div>
     );
@@ -196,7 +205,7 @@ export function ReportViewPage() {
         <div className="max-w-6xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/medecin/reports')}>
+              <Button variant="ghost" onClick={() => navigate(backUrl)}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Retour
               </Button>

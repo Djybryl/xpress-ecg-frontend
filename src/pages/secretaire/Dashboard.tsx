@@ -61,7 +61,7 @@ export function SecretaireDashboard() {
             <UserCog className="h-3.5 w-3.5 mr-1.5" />Assigner
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate('/secretaire/send-reports')}>
-            <Send className="h-3.5 w-3.5 mr-1.5" />Envoi rapports
+            <Send className="h-3.5 w-3.5 mr-1.5" />Rapports terminés
           </Button>
         </div>
       </div>

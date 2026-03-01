@@ -150,7 +150,7 @@ export const secretaireNavigation: NavigationConfig = {
       badgeVariant: 'default'
     },
     { 
-      label: 'Envoi rapports', 
+      label: 'Rapports terminés', 
       path: '/secretaire/send-reports', 
       icon: Send,
       badge: 6,

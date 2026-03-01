@@ -7,8 +7,8 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  Download,
   Calendar,
-  Activity,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '@/providers/AuthProvider';
 import { useEcgList, ecgRef } from '@/hooks/useEcgList';
+import { api, ApiError } from '@/lib/apiClient';
+import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 export function CompletedECG() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { user } = useAuthContext();
   const { records: completedECGs, loading, error } = useEcgList({
     status: 'completed',
@@ -77,8 +82,39 @@ export function CompletedECG() {
   const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
   const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [searchTerm, resultFilter, periodFilter]);
+  useEffect(() => { setPage(1); }, [searchTerm, periodFilter]);
+
+  const handleViewReport = async (ecgId: string) => {
+    try {
+      const res = await api.get<{ reports?: { id: string }[] } | { id: string }[]>(
+        '/reports', { ecg_record_id: ecgId, limit: 1 }
+      );
+      const list = Array.isArray(res) ? res : (res as { reports?: { id: string }[] }).reports ?? [];
+      if (list.length > 0) {
+        navigate(`/cardiologue/reports/${list[0].id}`);
+      } else {
+        toast({ title: 'Rapport non trouvé', description: 'Aucun rapport finalisé pour cet ECG.', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Erreur', description: err instanceof ApiError ? err.message : 'Impossible de charger le rapport.', variant: 'destructive' });
+    }
+  };
+
+  const handleDownloadReport = async (ecgId: string) => {
+    try {
+      const res = await api.get<{ reports?: { id: string; pdf_url: string | null }[] } | { id: string; pdf_url: string | null }[]>(
+        '/reports', { ecg_record_id: ecgId, limit: 1 }
+      );
+      const list = Array.isArray(res) ? res : (res as { reports?: { id: string; pdf_url: string | null }[] }).reports ?? [];
+      if (list.length > 0 && list[0].pdf_url) {
+        window.open(list[0].pdf_url, '_blank');
+      } else {
+        toast({ title: 'PDF non disponible', description: 'Le PDF de ce rapport n\'a pas encore été généré.', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Erreur', description: err instanceof ApiError ? err.message : 'Impossible de télécharger.', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -201,8 +237,13 @@ export function CompletedECG() {
                       </TableCell>
                       <TableCell className="py-1.5 text-right">
                         <div className="flex items-center justify-end gap-0.5">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Voir le rapport">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Voir le rapport"
+                            onClick={() => handleViewReport(ecg.id)}>
                             <Eye className="h-3.5 w-3.5 text-indigo-600" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Télécharger le rapport PDF"
+                            onClick={() => handleDownloadReport(ecg.id)}>
+                            <Download className="h-3.5 w-3.5 text-gray-500" />
                           </Button>
                         </div>
                       </TableCell>

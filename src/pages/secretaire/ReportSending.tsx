@@ -1,12 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   Search,
   Download,
   Eye,
   AlertCircle,
-  CheckCircle,
-  Clock,
   RefreshCw,
   Activity,
   ExternalLink,
@@ -51,6 +50,7 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 10;
 
 export function ReportSending() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { reports, loading, error, refetch } = useReportList();
 
@@ -102,7 +102,7 @@ export function ReportSending() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <FileText className="h-5 w-5 text-indigo-600" />
-          Rapports finalisés
+          Rapports terminés
           {reports.length > 0 && (
             <Badge variant="secondary" className="text-xs">{reports.length}</Badge>
           )}
@@ -110,14 +110,6 @@ export function ReportSending() {
         <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={refetch} title="Actualiser">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
-      </div>
-
-      {/* Bannière info */}
-      <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-        <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-        <span>
-          Les rapports sont <strong>directement transmis au médecin référent</strong> dès leur finalisation par le cardiologue. Vous pouvez les consulter et les télécharger ici.
-        </span>
       </div>
 
       {error && (
@@ -229,8 +221,8 @@ export function ReportSending() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7"
-                            title="Aperçu" onClick={() => setPreviewReport(report)}>
-                            <Eye className="h-3.5 w-3.5 text-gray-600" />
+                            title="Voir le rapport" onClick={() => navigate(`/secretaire/reports/${report.id}`)}>
+                            <Eye className="h-3.5 w-3.5 text-indigo-600" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7"
                             title={report.pdf_url ? 'Télécharger PDF' : 'PDF non disponible'}
