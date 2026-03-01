@@ -123,16 +123,26 @@ export function ECGInbox() {
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
   const paginatedItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  // Stats globales (tous les enregistrements, sans filtre)
+  const stats = {
+    total:     allItems.length,
+    pending:   allItems.filter(e => e.status === 'pending').length,
+    assigned:  allItems.filter(e => e.status === 'assigned' || e.status === 'validated').length,
+    analyzing: allItems.filter(e => e.status === 'analyzing').length,
+    completed: allItems.filter(e => e.status === 'completed').length,
+    urgent:    allItems.filter(e => e.urgency === 'urgent' && e.status !== 'completed').length,
+  };
+
   return (
     <div className="space-y-3">
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Inbox className="h-5 w-5 text-indigo-600" />
-          Demandes entrantes
-          {allItems.filter(e => e.status !== 'completed').length > 0 && (
+          Demandes Reçues
+          {stats.pending + stats.assigned + stats.analyzing > 0 && (
             <Badge variant="secondary" className="text-xs">
-              {allItems.filter(e => e.status !== 'completed').length}
+              {stats.pending + stats.assigned + stats.analyzing}
             </Badge>
           )}
         </h1>
@@ -152,14 +162,31 @@ export function ECGInbox() {
         </div>
       </div>
 
-      {/* Bannière info */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-        <span>
-          Les ECG entrants sont <strong>directement accessibles aux cardiologues disponibles</strong>.
-          L'assignation spécifique à un cardiologue est optionnelle.
-        </span>
-      </div>
+      {/* Barre de stats compacte */}
+      {!loading && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+            <FileText className="h-3 w-3" />{stats.total} total
+          </span>
+          {stats.urgent > 0 && (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-100 text-red-700 text-xs font-medium animate-pulse">
+              <AlertCircle className="h-3 w-3" />{stats.urgent} urgent{stats.urgent > 1 ? 's' : ''}
+            </span>
+          )}
+          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 text-xs">
+            <RefreshCw className="h-3 w-3" />{stats.pending} en attente
+          </span>
+          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 text-xs">
+            <UserCog className="h-3 w-3" />{stats.assigned} assigné{stats.assigned > 1 ? 's' : ''}
+          </span>
+          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-100 text-purple-700 text-xs">
+            <Activity className="h-3 w-3" />{stats.analyzing} en analyse
+          </span>
+          <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-100 text-green-700 text-xs">
+            <Eye className="h-3 w-3" />{stats.completed} terminé{stats.completed > 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
 
       {!loading && error && (
         <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

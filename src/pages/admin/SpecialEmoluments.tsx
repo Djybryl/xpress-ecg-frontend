@@ -232,7 +232,7 @@ export function SpecialEmoluments() {
       setFormData(prev => ({
         ...prev,
         userId: user.id,
-        userName: user.full_name,
+        userName: user.name,
         userRole: user.role === 'cardiologue' ? 'cardiologue' : 'medecin',
       }));
     }
@@ -515,7 +515,7 @@ export function SpecialEmoluments() {
                       .filter(u => u.role === 'cardiologue' || u.role === 'medecin')
                       .map(u => (
                         <SelectItem key={u.id} value={u.id}>
-                          {u.full_name} - {u.role === 'cardiologue' ? 'Cardiologue' : 'Médecin'}
+                          {u.name} - {u.role === 'cardiologue' ? 'Cardiologue' : 'Médecin'}
                         </SelectItem>
                       ))
                     }

@@ -67,8 +67,7 @@ export function SecondOpinionRequests() {
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
   const paginatedRequests = filteredRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [searchQuery, statusFilter, urgencyFilter]);
+  useEffect(() => { setPage(1); }, [searchQuery, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; color: string }> = {

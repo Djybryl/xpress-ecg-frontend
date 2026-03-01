@@ -58,6 +58,9 @@ export function Emoluments() {
     setHookPeriod(p);
   };
 
+  // Période validée = tous les émoluments ont un statut != 'pending'
+  const isPeriodValidated = emoluments.length > 0 && emoluments.every(e => e.status !== 'pending');
+
   // Filtrage et tri
   const filteredEmoluments = useMemo(() => {
     let filtered = [...emoluments];
@@ -312,7 +315,7 @@ export function Emoluments() {
             <div>
               <p className="text-sm text-gray-600">Statut du mois</p>
               <Badge variant="secondary" className="mt-1">
-                {getMonthlyReport(selectedPeriod)?.validated ? (
+                {isPeriodValidated ? (
                   <>
                     <Lock className="h-3 w-3 mr-1" />
                     Validé & Clôturé
@@ -326,7 +329,7 @@ export function Emoluments() {
               </Badge>
             </div>
 
-            {!getMonthlyReport(selectedPeriod)?.validated && (
+            {!isPeriodValidated && (
               <Button 
                 onClick={handleValidateMonth}
                 className="bg-indigo-600 hover:bg-indigo-700"
@@ -337,7 +340,7 @@ export function Emoluments() {
             )}
           </div>
           
-          {!getMonthlyReport(selectedPeriod)?.validated && (
+          {!isPeriodValidated && (
             <p className="text-xs text-gray-500 mt-3">
               ⚠️ Une fois validé, les montants seront archivés et non modifiables.
             </p>

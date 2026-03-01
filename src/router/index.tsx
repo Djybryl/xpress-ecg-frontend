@@ -93,7 +93,7 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<CardiologueDashboard />} />
+          <Route index element={<Navigate to="pending" replace />} />
           <Route path="pending" element={<PendingECG />} />
           <Route path="urgent" element={<PendingECG />} />
           <Route path="second-opinion" element={<SecondOpinionRequests />} />
@@ -131,7 +131,7 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<MedecinDashboard />} />
+          <Route index element={<Navigate to="requests" replace />} />
           <Route path="new-ecg" element={<NewECGPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="patients" element={<PatientsPage />} />
@@ -149,7 +149,7 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<SecretaireDashboard />} />
+          <Route index element={<Navigate to="inbox" replace />} />
           <Route path="inbox" element={<ECGInbox />} />
           <Route path="assign" element={<ECGAssignment />} />
           <Route path="send-reports" element={<ReportSending />} />

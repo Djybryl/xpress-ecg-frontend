@@ -328,7 +328,7 @@ export function NewECGPage() {
   };
 
   // Sélection d'un patient existant
-  const selectPatient = (patient: Patient) => {
+  const selectPatient = (patient: PatientItem) => {
     setFormData(prev => ({
       ...prev,
       patient,

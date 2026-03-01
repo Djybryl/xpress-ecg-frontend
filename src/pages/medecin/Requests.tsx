@@ -238,7 +238,7 @@ export function RequestsPage() {
   const requests: ECGRequest[] = rawRecords.map(toECGRequest);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [showRelanceDialog, setShowRelanceDialog] = useState(false);
@@ -251,7 +251,10 @@ export function RequestsPage() {
     const matchesSearch =
       request.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.reference.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    const matchesStatus =
+      statusFilter === 'all' ? true :
+      statusFilter === 'active' ? request.status !== 'completed' :
+      request.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -386,14 +389,15 @@ export function RequestsPage() {
         <CardHeader className="border-b p-0">
           {/* Barre unique : onglets + recherche */}
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 flex-wrap">
-            <Tabs defaultValue="all" onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }} className="flex-1">
+            <Tabs defaultValue="active" onValueChange={v => { setStatusFilter(v); setCurrentPage(1); }} className="flex-1">
               <TabsList className="h-8 bg-transparent p-0 gap-1">
                 {[
+                  { value: 'active',    label: 'En cours', count: requests.filter(r => r.status !== 'completed').length, icon: Activity },
                   { value: 'all',       label: 'Tout',     count: requests.length, icon: null },
-                  { value: 'pending',   label: 'Attente',  count: stats.pending,       icon: Clock },
-                  { value: 'received',  label: 'Reçu',     count: stats.received,      icon: Inbox },
-                  { value: 'analyzing', label: 'Analyse',  count: stats.analyzing,     icon: Activity },
-                  { value: 'completed', label: 'Terminé',  count: stats.completed,     icon: CheckCircle },
+                  { value: 'pending',   label: 'Attente',  count: stats.pending,   icon: Clock },
+                  { value: 'received',  label: 'Reçu',     count: stats.received,  icon: Inbox },
+                  { value: 'analyzing', label: 'Analyse',  count: stats.analyzing, icon: Activity },
+                  { value: 'completed', label: 'Terminé',  count: stats.completed, icon: CheckCircle },
                 ].map(tab => {
                   const Icon = tab.icon;
                   return (
@@ -430,45 +434,45 @@ export function RequestsPage() {
                   open={isExpanded}
                   onOpenChange={() => toggleRow(request.id)}
                 >
-                  {/* Ligne principale */}
+                  {/* Ligne principale compacte */}
                   <div className={cn(
-                    'flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors',
+                    'flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors',
                     request.urgency === 'urgent' && request.status !== 'completed' && 'bg-red-50/50'
                   )}>
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
                         {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
+                          <ChevronUp className="h-3.5 w-3.5" />
                         ) : (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown className="h-3.5 w-3.5" />
                         )}
                       </Button>
                     </CollapsibleTrigger>
 
-                    <div className="flex-1 grid grid-cols-6 gap-4 items-center">
+                    <div className="flex-1 grid grid-cols-6 gap-3 items-center min-w-0">
                       {/* Patient */}
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{request.patient_name}</span>
+                      <div className="col-span-2 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-medium truncate">{request.patient_name}</span>
                           {request.urgency === 'urgent' && (
-                            <Badge variant="destructive" className="text-xs">
+                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">
                               Urgent
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500">
-                          {request.reference} • {request.patient_gender === 'M' ? 'H' : 'F'}{request.patient_age ? `, ${request.patient_age} ans` : ''}
+                        <p className="text-xs text-gray-400 truncate">
+                          {request.reference} · {request.patient_gender === 'M' ? 'H' : 'F'}{request.patient_age ? `, ${request.patient_age} ans` : ''}
                         </p>
                       </div>
 
                       {/* Date d'envoi */}
                       <div>
-                        <p className="text-sm text-gray-600">{formatDate(request.date_sent)}</p>
+                        <p className="text-xs text-gray-500">{formatDate(request.date_sent)}</p>
                       </div>
 
                       {/* Statut */}
                       <div>
-                        <Badge className={cn('gap-1', getStatusColor(request.status))}>
+                        <Badge className={cn('gap-1 text-[11px] px-1.5 py-0.5', getStatusColor(request.status))}>
                           {getStatusIcon(request.status)}
                           {getStatusLabel(request.status)}
                         </Badge>
@@ -478,18 +482,16 @@ export function RequestsPage() {
                       <div>
                         {waitingTime.text && (
                           <div className={cn(
-                            'flex items-center gap-1 text-sm',
-                            waitingTime.isLong ? 'text-red-600 font-medium' : 'text-gray-500'
+                            'flex items-center gap-1 text-xs',
+                            waitingTime.isLong ? 'text-red-600 font-medium' : 'text-gray-400'
                           )}>
                             <Clock className="h-3 w-3" />
                             {waitingTime.text}
-                            {waitingTime.isLong && (
-                              <AlertCircle className="h-3 w-3" />
-                            )}
+                            {waitingTime.isLong && <AlertCircle className="h-3 w-3" />}
                           </div>
                         )}
                         {request.cardiologist && (
-                          <p className="text-xs text-gray-500">{request.cardiologist}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{request.cardiologist}</p>
                         )}
                       </div>
 
@@ -499,7 +501,7 @@ export function RequestsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-6 text-[11px] px-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate('/medecin/reports');
@@ -514,10 +516,10 @@ export function RequestsPage() {
                             variant="outline"
                             size="sm"
                             className={cn(
-                              "h-7 text-xs",
+                              "h-6 text-[11px] px-2",
                               waitingTime.isLong
                                 ? "text-amber-600 border-amber-300 hover:bg-amber-50"
-                                : "text-gray-500 border-gray-200 hover:bg-gray-50"
+                                : "text-gray-400 border-gray-200 hover:bg-gray-50"
                             )}
                             onClick={(e) => {
                               e.stopPropagation();

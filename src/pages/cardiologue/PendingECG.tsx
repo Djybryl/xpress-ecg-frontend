@@ -108,7 +108,7 @@ export function PendingECG() {
     .map(toCardiologueECG) as (CardiologueECG & { backendStatus: string; reference: string })[];
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [urgencyFilter, setUrgencyFilter] = useState<string>(isUrgentRoute ? 'urgent' : 'all');
+  const [urgencyFilter, setUrgencyFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [previewECG, setPreviewECG] = useState<CardiologueECG | null>(null);
   const [page, setPage] = useState(1);
@@ -120,6 +120,12 @@ export function PendingECG() {
     return () => clearInterval(id);
   }, [releaseExpiredECGs]);
 
+  // Synchroniser le filtre urgence quand la route change
+  useEffect(() => {
+    setUrgencyFilter(isUrgentRoute ? 'urgent' : 'all');
+    setPage(1);
+  }, [isUrgentRoute]);
+
   // ECG en cours d'analyse pour CE cardiologue (timer local dans le store)
   const myInProgress = user?.email ? getMyInProgress(user.email) : [];
   const counts = getCounts(user?.email);
@@ -128,14 +134,16 @@ export function PendingECG() {
     const matchesSearch =
       ecg.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ecgRef(ecg).toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesUrgency = urgencyFilter === 'all' || ecg.urgency === urgencyFilter;
+    // Sur la route /urgent : forcer le filtre urgents même si le state est 'all'
+    const matchesUrgency = isUrgentRoute
+      ? ecg.urgency === 'urgent'
+      : (urgencyFilter === 'all' || ecg.urgency === urgencyFilter);
     return matchesSearch && matchesUrgency;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredECGs.length / PAGE_SIZE));
   const paginatedECGs = filteredECGs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Reset page when filters change
   useEffect(() => { setPage(1); }, [searchTerm, urgencyFilter]);
 
   const handleStartAnalysis = async (ecg: CardiologueECG) => {
@@ -167,7 +175,7 @@ export function PendingECG() {
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             {isUrgentRoute
               ? <><AlertCircle className="h-5 w-5 text-red-500" />ECG Urgents</>
-              : <><Inbox className="h-5 w-5 text-indigo-600" />ECG disponibles</>
+              : <><Inbox className="h-5 w-5 text-indigo-600" />Demandes ECG</>
             }
           </h1>
         </div>
@@ -265,7 +273,7 @@ export function PendingECG() {
                   className="pl-8 h-8 text-sm w-52"
                 />
               </div>
-              <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+              {!isUrgentRoute && <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
                 <SelectTrigger className="h-8 w-28 text-xs">
                   <Filter className="h-3 w-3 mr-1" />
                   <SelectValue />
@@ -275,7 +283,7 @@ export function PendingECG() {
                   <SelectItem value="urgent">Urgents</SelectItem>
                   <SelectItem value="normal">Normaux</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
             </div>
           </div>
         </CardHeader>

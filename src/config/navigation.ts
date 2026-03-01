@@ -42,12 +42,7 @@ export interface NavigationConfig {
 export const cardiologueNavigation: NavigationConfig = {
   main: [
     { 
-      label: 'Tableau de bord', 
-      path: '/cardiologue', 
-      icon: Home 
-    },
-    { 
-      label: 'ECG en attente', 
+      label: 'Demandes ECG', 
       path: '/cardiologue/pending', 
       icon: Inbox,
       badge: 12,
@@ -68,11 +63,6 @@ export const cardiologueNavigation: NavigationConfig = {
       badgeVariant: 'default'
     },
     { 
-      label: 'En cours d\'analyse', 
-      path: '/cardiologue/analyzing', 
-      icon: Clock 
-    },
-    { 
       label: 'Rapports ECG', 
       path: '/cardiologue/completed', 
       icon: CheckCircle 
@@ -91,19 +81,14 @@ export const cardiologueNavigation: NavigationConfig = {
 export const medecinNavigation: NavigationConfig = {
   main: [
     { 
-      label: 'Tableau de bord', 
-      path: '/medecin', 
-      icon: Home 
+      label: 'Mes demandes', 
+      path: '/medecin/requests', 
+      icon: List
     },
     { 
       label: 'Nouvel ECG', 
       path: '/medecin/new-ecg', 
       icon: Upload 
-    },
-    { 
-      label: 'Mes demandes', 
-      path: '/medecin/requests', 
-      icon: List
     },
     { 
       label: 'Rapports reçus', 
@@ -131,12 +116,7 @@ export const medecinNavigation: NavigationConfig = {
 export const secretaireNavigation: NavigationConfig = {
   main: [
     { 
-      label: 'Tableau de bord', 
-      path: '/secretaire', 
-      icon: Home 
-    },
-    { 
-      label: 'Réception ECG', 
+      label: 'Demandes Reçues', 
       path: '/secretaire/inbox', 
       icon: Inbox,
       badge: 8,
