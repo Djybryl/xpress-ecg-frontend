@@ -17,12 +17,15 @@ export interface ReportItem {
   /** Champs joints */
   patient_name: string | null;
   cardiologist_name: string | null;
+  ecg_reference: string | null;
 }
 
 export interface ReportListParams {
   is_read?: boolean;
   status?: string;
   ecg_record_id?: string;
+  /** Filtrer par médecin référent (joint sur ecg_records.referring_doctor_id) */
+  referring_doctor_id?: string;
   limit?: number;
 }
 
@@ -51,9 +54,10 @@ export function useReportList(params: ReportListParams = {}): UseReportListResul
       const queryParams: Record<string, string | number | boolean | undefined> = {
         limit: params.limit ?? 200,
       };
-      if (params.is_read !== undefined) queryParams.is_read  = params.is_read;
-      if (params.status)               queryParams.status    = params.status;
-      if (params.ecg_record_id)        queryParams.ecg_record_id = params.ecg_record_id;
+      if (params.is_read !== undefined)  queryParams.is_read           = params.is_read;
+      if (params.status)                 queryParams.status             = params.status;
+      if (params.ecg_record_id)          queryParams.ecg_record_id      = params.ecg_record_id;
+      if (params.referring_doctor_id)    queryParams.referring_doctor_id = params.referring_doctor_id;
 
       const response = await api.get<ReportItem[] | { reports?: ReportItem[]; total?: number }>(
         '/reports',
@@ -75,7 +79,7 @@ export function useReportList(params: ReportListParams = {}): UseReportListResul
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.is_read, params.status, params.ecg_record_id, params.limit]);
+  }, [params.is_read, params.status, params.ecg_record_id, params.referring_doctor_id, params.limit]);
 
   useEffect(() => {
     fetchReports();

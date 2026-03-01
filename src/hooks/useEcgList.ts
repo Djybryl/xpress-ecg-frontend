@@ -36,6 +36,12 @@ export interface EcgListParams {
   hospital_id?: string;
   /** Nombre max d'enregistrements à récupérer (défaut 200) */
   limit?: number;
+  /**
+   * UUID du cardiologue connecté : retourne les pending (file commune)
+   * + les assigned attribués à cet utilisateur.
+   * Si fourni, le filtre `status` est ignoré côté backend.
+   */
+  viewer_id?: string;
 }
 
 interface UseEcgListResult {
@@ -78,6 +84,7 @@ export function useEcgList(params: EcgListParams = {}): UseEcgListResult {
       if (params.status)              queryParams.status = params.status;
       if (params.urgency)             queryParams.urgency = params.urgency;
       if (params.hospital_id)         queryParams.hospital_id = params.hospital_id;
+      if (params.viewer_id)           queryParams.viewer_id = params.viewer_id;
 
       const response = await api.get<{ records: EcgRecordItem[]; total: number }>(
         '/ecg-records',
@@ -98,6 +105,7 @@ export function useEcgList(params: EcgListParams = {}): UseEcgListResult {
     params.urgency,
     params.hospital_id,
     params.limit,
+    params.viewer_id,
   ]);
 
   useEffect(() => {

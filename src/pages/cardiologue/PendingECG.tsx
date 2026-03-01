@@ -101,7 +101,8 @@ export function PendingECG() {
 
   // Toutes les demandes non complétées (pending, validated, assigned, analyzing)
   // Le cardiologue voit tout par défaut ; la secrétaire peut assigner à un cardiologue précis
-  const { records, loading, error, refetch } = useEcgList({});
+  // viewer_id : voit les pending communs + les ECG qui lui sont spécifiquement assignés
+  const { records, loading, error, refetch } = useEcgList({ viewer_id: user?.id });
   const availableECGs = records
     .filter(r => r.status !== 'completed')
     .map(toCardiologueECG) as (CardiologueECG & { backendStatus: string; reference: string })[];

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -35,37 +35,109 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useReportStore, type ECGReport } from '@/stores/useReportStore';
+import { api, ApiError } from '@/lib/apiClient';
+import type { ReportItem } from '@/hooks/useReportList';
 import { cn } from '@/lib/utils';
 import { IMAGES } from '@/lib/constants';
+
+/** Lire un champ JSON imbriqué de façon sûre */
+function jsonField(obj: unknown, key: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined;
+  return (obj as Record<string, unknown>)[key];
+}
+
+/** Adapter API → structure d'affichage */
+interface ReportDisplay {
+  id: string;
+  ecgId: string;
+  patientName: string;
+  patientId: string;
+  cardiologist: string;
+  isUrgent: boolean;
+  isNormal: boolean;
+  conclusion: string;
+  interpretation: string;
+  dateEcg: string;
+  dateReceived: string;
+  measurements: {
+    heartRate?: number;
+    prInterval?: number;
+    qrsDuration?: number;
+    qtInterval?: number;
+    qrsAxis?: string;
+  };
+}
+
+function toDisplay(r: ReportItem): ReportDisplay {
+  const m = r.measurements as Record<string, unknown> | null ?? {};
+  const interp = r.interpretation as Record<string, unknown> | null ?? {};
+  return {
+    id:             r.id,
+    ecgId:          (r as unknown as { ecg_reference?: string }).ecg_reference ?? r.ecg_record_id,
+    patientName:    r.patient_name ?? '—',
+    patientId:      '—',
+    cardiologist:   r.cardiologist_name ?? '—',
+    isUrgent:       r.is_urgent,
+    isNormal:       r.is_normal,
+    conclusion:     r.conclusion || (jsonField(interp, 'conclusion') as string) || '—',
+    interpretation: (jsonField(interp, 'text') as string) || (jsonField(interp, 'conclusion') as string) || r.conclusion || '—',
+    dateEcg:        r.created_at,
+    dateReceived:   r.created_at,
+    measurements: {
+      heartRate:   (m.heartRate as number) ?? undefined,
+      prInterval:  (m.prInterval as number) ?? undefined,
+      qrsDuration: (m.qrsDuration as number) ?? undefined,
+      qtInterval:  (m.qtInterval as number) ?? undefined,
+      qrsAxis:     (m.qrsAxis as string) ?? undefined,
+    },
+  };
+}
 
 export function ReportViewPage() {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { getReport, markAsRead } = useReportStore();
-  
-  const [report, setReport] = useState<ECGReport | null>(null);
+
+  const [report, setReport] = useState<ReportDisplay | null>(null);
+  const [loadingReport, setLoadingReport] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [contactMessage, setContactMessage] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  useEffect(() => {
-    if (reportId) {
-      const foundReport = getReport(reportId);
-      if (foundReport) {
-        setReport(foundReport);
-        markAsRead(reportId);
-      }
+  const fetchReport = useCallback(async () => {
+    if (!reportId) return;
+    setLoadingReport(true);
+    setLoadError(null);
+    try {
+      const data = await api.get<ReportItem>(`/reports/${reportId}`);
+      setReport(toDisplay(data));
+      // Marquer comme lu
+      api.patch(`/reports/${reportId}/mark-read`).catch(() => {});
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : 'Rapport introuvable');
+    } finally {
+      setLoadingReport(false);
     }
-  }, [reportId, getReport, markAsRead]);
+  }, [reportId]);
 
-  if (!report) {
+  useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  if (loadingReport) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-gray-500">Rapport non trouvé</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate('/medecin/reports')}>
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400">
+        <div className="w-6 h-6 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mr-3" />
+        Chargement du rapport…
+      </div>
+    );
+  }
+
+  if (loadError || !report) {
+    return (
+      <div className="p-6 text-center space-y-3">
+        <p className="text-gray-500">{loadError ?? 'Rapport non trouvé'}</p>
+        <Button variant="outline" onClick={() => navigate('/medecin/reports')}>
           Retour aux rapports
         </Button>
       </div>

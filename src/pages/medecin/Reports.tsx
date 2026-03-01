@@ -54,12 +54,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useReportList } from '@/hooks/useReportList';
+import { useAuthContext } from '@/providers/AuthProvider';
 import { cn } from '@/lib/utils';
 
 export function ReportsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { reports, unreadCount, urgentUnreadCount, loading, error, markRead, markAllRead } = useReportList();
+  const { user } = useAuthContext();
+  // Filtrer par médecin référent pour n'afficher que ses propres rapports
+  const { reports, unreadCount, urgentUnreadCount, loading, error, markRead, markAllRead } = useReportList({
+    referring_doctor_id: user?.id,
+  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unread' | 'read'>('all');
@@ -77,7 +82,7 @@ export function ReportsPage() {
   const filteredReports = reports.filter(report => {
     const matchesSearch =
       (report.patient_name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.ecg_record_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (report.ecg_reference ?? report.ecg_record_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.conclusion.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
@@ -245,7 +250,7 @@ export function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-indigo-600 font-medium">{report.ecg_record_id.slice(0, 8)}…</span>
+                    <span className="text-indigo-600 font-mono text-xs font-medium">{report.ecg_reference ?? report.ecg_record_id.slice(0, 12)}</span>
                   </TableCell>
                   <TableCell className="text-gray-600">
                     <div className="flex items-center gap-1">
