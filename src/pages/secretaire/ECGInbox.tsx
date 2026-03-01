@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Inbox,
-  AlertTriangle,
-  Clock,
   User,
   Building2,
   FileText,
@@ -44,7 +42,6 @@ import {
 } from "@/components/ui/dialog";
 import { useEcgList } from '@/hooks/useEcgList';
 import type { EcgRecordItem } from '@/hooks/useEcgList';
-import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -90,7 +87,6 @@ function toInboxItem(r: EcgRecordItem): InboxItem {
 
 export function ECGInbox() {
   const navigate = useNavigate();
-  const { toast: _toast } = useToast();
 
   // Tous les ECG non complétés (lecture seule)
   const { records, loading, error, refetch } = useEcgList({});
@@ -444,6 +440,3 @@ export function ECGInbox() {
   );
 }
 
-// Supprime les imports inutilisés du lint
-void AlertTriangle;
-void Clock;
