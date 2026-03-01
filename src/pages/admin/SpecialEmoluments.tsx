@@ -53,22 +53,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useEconomyStore, SpecialEmolument } from '@/stores/useEconomyStore';
-import { useAdminStore } from '@/stores/useAdminStore';
+import { useSpecialEmoluments, useFinancialConfig, SpecialEmolument } from '@/hooks/useFinancials';
+import { useUserList } from '@/hooks/useUserList';
+import { useHospitalList } from '@/hooks/useHospitalList';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export function SpecialEmoluments() {
-  const { 
-    specialEmoluments, 
-    tarifConfig, 
-    addSpecialEmolument, 
-    updateSpecialEmolument, 
-    deleteSpecialEmolument 
-  } = useEconomyStore();
-  const { users, hospitals } = useAdminStore();
+  const { items: specialEmoluments, loading, create: addSpecialEmolument, update: updateSpecialEmolument, remove: deleteSpecialEmolument } = useSpecialEmoluments();
+  const { tarif: tarifConfig } = useFinancialConfig();
+  const { users } = useUserList();
+  const { hospitals } = useHospitalList();
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -149,20 +146,20 @@ export function SpecialEmoluments() {
       userName: emolument.userName,
       userRole: emolument.userRole,
       isActive: emolument.isActive,
-      type: emolument.customRate.type,
-      percentageOverride: emolument.customRate.percentageOverride || 70,
-      fixedAmountPerEcg: emolument.customRate.fixedAmountPerEcg || 12000,
-      basePercentage: emolument.customRate.basePercentage || 50,
-      bonusPerEcg: emolument.customRate.bonusPerEcg || 2000,
-      minEcgPerMonth: emolument.conditions?.minEcgPerMonth || 0,
-      specificHospitals: emolument.conditions?.specificHospitals || [],
-      validUntil: emolument.conditions?.validUntil || '',
+      type: emolument.customRateType,
+      percentageOverride: emolument.percentageOverride ?? 70,
+      fixedAmountPerEcg: emolument.fixedAmountPerEcg ?? 12000,
+      basePercentage: emolument.basePercentage ?? 50,
+      bonusPerEcg: emolument.bonusPerEcg ?? 2000,
+      minEcgPerMonth: emolument.minEcgPerMonth ?? 0,
+      specificHospitals: [],
+      validUntil: emolument.validUntil ?? '',
       reason: emolument.reason,
     });
     setEditDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.userId || !formData.reason) {
       toast({
         variant: "destructive",
@@ -172,65 +169,60 @@ export function SpecialEmoluments() {
       return;
     }
 
-    const emolumentData: Omit<SpecialEmolument, 'id' | 'createdAt'> = {
+    const emolumentData: Omit<SpecialEmolument, 'id' | 'createdAt' | 'updatedAt'> = {
       userId: formData.userId,
       userName: formData.userName,
       userRole: formData.userRole,
       isActive: formData.isActive,
-      customRate: {
-        type: formData.type,
-        percentageOverride: formData.type === 'percentage' ? formData.percentageOverride : undefined,
-        fixedAmountPerEcg: formData.type === 'fixed_per_ecg' ? formData.fixedAmountPerEcg : undefined,
-        basePercentage: formData.type === 'hybrid' ? formData.basePercentage : undefined,
-        bonusPerEcg: formData.type === 'hybrid' ? formData.bonusPerEcg : undefined,
-      },
-      conditions: {
-        minEcgPerMonth: formData.minEcgPerMonth > 0 ? formData.minEcgPerMonth : undefined,
-        specificHospitals: formData.specificHospitals.length > 0 ? formData.specificHospitals : undefined,
-        validUntil: formData.validUntil || undefined,
-      },
+      customRateType: formData.type,
+      percentageOverride: formData.type === 'percentage' ? formData.percentageOverride : null,
+      fixedAmountPerEcg: formData.type === 'fixed_per_ecg' ? formData.fixedAmountPerEcg : null,
+      basePercentage: formData.type === 'hybrid' ? formData.basePercentage : null,
+      bonusPerEcg: formData.type === 'hybrid' ? formData.bonusPerEcg : null,
+      minEcgPerMonth: formData.minEcgPerMonth > 0 ? formData.minEcgPerMonth : null,
+      validUntil: formData.validUntil || null,
       reason: formData.reason,
-      createdBy: 'USR-004',
-      createdByName: 'Admin Principal',
-      updatedAt: isNew ? undefined : new Date().toISOString(),
+      createdBy: null,
+      createdByName: 'Admin',
     };
 
-    if (isNew) {
-      addSpecialEmolument(emolumentData);
-      toast({
-        title: "✅ Émolument spécial créé",
-        description: `Tarif personnalisé activé pour ${formData.userName}`,
-      });
-    } else if (selectedEmolument) {
-      updateSpecialEmolument(selectedEmolument.id, emolumentData);
-      toast({
-        title: "✅ Émolument spécial modifié",
-        description: `Les paramètres ont été mis à jour.`,
-      });
+    try {
+      if (isNew) {
+        await addSpecialEmolument(emolumentData);
+        toast({ title: "✅ Émolument spécial créé", description: `Tarif personnalisé activé pour ${formData.userName}` });
+      } else if (selectedEmolument) {
+        await updateSpecialEmolument(selectedEmolument.id, emolumentData);
+        toast({ title: "✅ Émolument spécial modifié", description: `Les paramètres ont été mis à jour.` });
+      }
+      setEditDialogOpen(false);
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de sauvegarder.' });
     }
-
-    setEditDialogOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (selectedEmolument) {
-      deleteSpecialEmolument(selectedEmolument.id);
-      toast({
-        title: "Émolument spécial supprimé",
-        description: `Le tarif personnalisé a été retiré.`,
-        variant: "destructive",
-      });
+      try {
+        await deleteSpecialEmolument(selectedEmolument.id);
+        toast({ title: "Émolument spécial supprimé", description: `Le tarif personnalisé a été retiré.`, variant: "destructive" });
+      } catch {
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de supprimer.' });
+      }
     }
     setDeleteDialogOpen(false);
     setSelectedEmolument(null);
   };
 
-  const handleToggleStatus = (emolument: SpecialEmolument) => {
-    updateSpecialEmolument(emolument.id, { isActive: !emolument.isActive });
-    toast({
-      title: emolument.isActive ? "Émolument désactivé" : "Émolument activé",
-      description: `Le tarif de ${emolument.userName} est ${emolument.isActive ? 'inactif' : 'actif'}.`,
-    });
+  const handleToggleStatus = async (emolument: SpecialEmolument) => {
+    try {
+      await updateSpecialEmolument(emolument.id, { isActive: !emolument.isActive });
+      toast({
+        title: emolument.isActive ? "Émolument désactivé" : "Émolument activé",
+        description: `Le tarif de ${emolument.userName} est ${emolument.isActive ? 'inactif' : 'actif'}.`,
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de modifier le statut.' });
+    }
   };
 
   // Sélection utilisateur
@@ -240,7 +232,7 @@ export function SpecialEmoluments() {
       setFormData(prev => ({
         ...prev,
         userId: user.id,
-        userName: user.name,
+        userName: user.full_name,
         userRole: user.role === 'cardiologue' ? 'cardiologue' : 'medecin',
       }));
     }
@@ -386,17 +378,17 @@ export function SpecialEmoluments() {
                   let customValue = '';
                   let vsStandard = '';
                   
-                  if (emolument.customRate.type === 'percentage') {
-                    customValue = `${emolument.customRate.percentageOverride}%`;
-                    const diff = (emolument.customRate.percentageOverride || 0) - standardPercent;
+                  if (emolument.customRateType === 'percentage') {
+                    customValue = `${emolument.percentageOverride ?? 0}%`;
+                    const diff = (emolument.percentageOverride ?? 0) - standardPercent;
                     vsStandard = diff > 0 ? `+${diff}%` : `${diff}%`;
-                  } else if (emolument.customRate.type === 'fixed_per_ecg') {
-                    customValue = formatFCFA(emolument.customRate.fixedAmountPerEcg || 0);
+                  } else if (emolument.customRateType === 'fixed_per_ecg') {
+                    customValue = formatFCFA(emolument.fixedAmountPerEcg ?? 0);
                     const standardAmount = (tarifConfig.ecgCostPatient * standardPercent) / 100;
-                    const diff = (emolument.customRate.fixedAmountPerEcg || 0) - standardAmount;
+                    const diff = (emolument.fixedAmountPerEcg ?? 0) - standardAmount;
                     vsStandard = diff > 0 ? `+${formatFCFA(diff)}` : formatFCFA(diff);
                   } else {
-                    customValue = `${emolument.customRate.basePercentage}% + ${formatFCFA(emolument.customRate.bonusPerEcg || 0)}`;
+                    customValue = `${emolument.basePercentage ?? 0}% + ${formatFCFA(emolument.bonusPerEcg ?? 0)}`;
                     vsStandard = '🔀 Hybride';
                   }
 
@@ -421,9 +413,9 @@ export function SpecialEmoluments() {
                       </TableCell>
                       <TableCell className="py-2">
                         <span className="text-xs">
-                          {emolument.customRate.type === 'percentage' && '% Personnalisé'}
-                          {emolument.customRate.type === 'fixed_per_ecg' && 'Montant fixe'}
-                          {emolument.customRate.type === 'hybrid' && 'Hybride'}
+                          {emolument.customRateType === 'percentage' && '% Personnalisé'}
+                          {emolument.customRateType === 'fixed_per_ecg' && 'Montant fixe'}
+                          {emolument.customRateType === 'hybrid' && 'Hybride'}
                         </span>
                       </TableCell>
                       <TableCell className="py-2 font-mono text-xs font-semibold">
@@ -523,7 +515,7 @@ export function SpecialEmoluments() {
                       .filter(u => u.role === 'cardiologue' || u.role === 'medecin')
                       .map(u => (
                         <SelectItem key={u.id} value={u.id}>
-                          {u.name} - {u.role === 'cardiologue' ? 'Cardiologue' : 'Médecin'}
+                          {u.full_name} - {u.role === 'cardiologue' ? 'Cardiologue' : 'Médecin'}
                         </SelectItem>
                       ))
                     }

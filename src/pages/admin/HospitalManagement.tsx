@@ -60,7 +60,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useAdminStore, type Hospital } from '@/stores/useAdminStore';
+import { useHospitalList, type HospitalItem } from '@/hooks/useHospitalList';
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -68,22 +68,16 @@ import { cn } from '@/lib/utils';
 
 export function HospitalManagement() {
   const { toast } = useToast();
-  const { 
-    hospitals, 
-    getStats,
-    addHospital, 
-    updateHospital, 
-    deleteHospital 
-  } = useAdminStore();
-  const stats = getStats();
+  const { hospitals, loading, error, createHospital, updateHospital, deleteHospital } = useHospitalList();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
+  const [selectedHospital, setSelectedHospital] = useState<HospitalItem | null>(null);
   const [isNewHospital, setIsNewHospital] = useState(false);
+  const [saving, setSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // ⌨️ Raccourcis clavier
@@ -115,11 +109,10 @@ export function HospitalManagement() {
     status: 'active' as 'active' | 'inactive'
   });
 
-  // Filtrage
   const filteredHospitals = hospitals.filter(hospital => {
     const matchesSearch = 
       hospital.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      hospital.city.toLowerCase().includes(searchTerm.toLowerCase());
+      (hospital.city ?? '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || hospital.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -132,10 +125,6 @@ export function HospitalManagement() {
   const inactiveCount = hospitals.filter(h => h.status === 'inactive').length;
 
   useEffect(() => { setPage(1); }, [searchTerm, statusFilter]);
-
-  // Calculs
-  const totalECG = hospitals.reduce((acc, h) => acc + h.ecgCount, 0);
-  const totalUsers = hospitals.reduce((acc, h) => acc + h.userCount, 0);
 
   const handleOpenNew = () => {
     setIsNewHospital(true);
@@ -150,61 +139,82 @@ export function HospitalManagement() {
     setEditDialogOpen(true);
   };
 
-  const handleOpenEdit = (hospital: Hospital) => {
+  const handleOpenEdit = (hospital: HospitalItem) => {
     setIsNewHospital(false);
     setSelectedHospital(hospital);
     setFormData({
       name: hospital.name,
-      address: hospital.address,
-      city: hospital.city,
-      phone: hospital.phone,
-      email: hospital.email,
-      status: hospital.status
+      address: hospital.address ?? '',
+      city: hospital.city ?? '',
+      phone: hospital.phone ?? '',
+      email: hospital.email ?? '',
+      status: hospital.status === 'pending' ? 'active' : hospital.status
     });
     setEditDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (isNewHospital) {
-      addHospital(formData);
-      toast({
-        title: "Établissement créé",
-        description: `${formData.name} a été ajouté avec succès.`
-      });
-    } else if (selectedHospital) {
-      updateHospital(selectedHospital.id, formData);
-      toast({
-        title: "Établissement modifié",
-        description: `Les informations de ${formData.name} ont été mises à jour.`
-      });
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (isNewHospital) {
+        await createHospital({
+          name: formData.name,
+          address: formData.address || undefined,
+          city: formData.city || undefined,
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
+        });
+        toast({ title: 'Établissement créé', description: `${formData.name} a été ajouté avec succès.` });
+      } else if (selectedHospital) {
+        await updateHospital(selectedHospital.id, {
+          name: formData.name,
+          address: formData.address || null,
+          city: formData.city || null,
+          phone: formData.phone || null,
+          email: formData.email || null,
+          status: formData.status,
+        });
+        toast({ title: 'Établissement modifié', description: `Les informations de ${formData.name} ont été mises à jour.` });
+      }
+      setEditDialogOpen(false);
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setEditDialogOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (selectedHospital) {
-      deleteHospital(selectedHospital.id);
-      toast({
-        title: "Établissement supprimé",
-        description: `${selectedHospital.name} a été supprimé.`,
-        variant: "destructive"
-      });
+      try {
+        await deleteHospital(selectedHospital.id);
+        toast({ title: 'Établissement supprimé', description: `${selectedHospital.name} a été supprimé.`, variant: 'destructive' });
+      } catch {
+        toast({ title: 'Erreur', description: 'Impossible de supprimer.', variant: 'destructive' });
+      }
     }
     setDeleteDialogOpen(false);
     setSelectedHospital(null);
   };
 
-  const handleToggleStatus = (hospital: Hospital) => {
+  const handleToggleStatus = async (hospital: HospitalItem) => {
     const newStatus = hospital.status === 'active' ? 'inactive' : 'active';
-    updateHospital(hospital.id, { status: newStatus });
-    toast({
-      title: newStatus === 'active' ? "Établissement activé" : "Établissement désactivé",
-      description: `${hospital.name} est maintenant ${newStatus === 'active' ? 'actif' : 'inactif'}.`
-    });
+    try {
+      await updateHospital(hospital.id, { status: newStatus });
+      toast({
+        title: newStatus === 'active' ? 'Établissement activé' : 'Établissement désactivé',
+        description: `${hospital.name} est maintenant ${newStatus === 'active' ? 'actif' : 'inactif'}.`
+      });
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de modifier le statut.', variant: 'destructive' });
+    }
   };
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>
+      )}
       {/* En-tête + Pills */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -213,7 +223,7 @@ export function HospitalManagement() {
             Établissements
           </h1>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
-            <span className="font-bold">{hospitals.length}</span>
+            {loading ? <span className="inline-block w-5 h-3 bg-indigo-200 rounded animate-pulse" /> : <span className="font-bold">{hospitals.length}</span>}
             <span className="opacity-75">total</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
@@ -249,7 +259,9 @@ export function HospitalManagement() {
               <SelectItem value="inactive">Inactifs</SelectItem>
             </SelectContent>
           </Select>
-          <span className="ml-auto text-xs text-gray-400">{filteredHospitals.length} établissement{filteredHospitals.length > 1 ? 's' : ''}</span>
+          <span className="ml-auto text-xs text-gray-400">
+            {loading ? 'Chargement…' : `${filteredHospitals.length} établissement${filteredHospitals.length > 1 ? 's' : ''}`}
+          </span>
           <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" title="Ctrl+N">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Nouveau
@@ -269,7 +281,11 @@ export function HospitalManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredHospitals.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-400">Chargement…</TableCell>
+                </TableRow>
+              ) : filteredHospitals.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     Aucun établissement trouvé
@@ -317,16 +333,10 @@ export function HospitalManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className="font-medium">{hospital.userCount}</span>
-                      </div>
+                      <span className="text-gray-400">-</span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Activity className="h-4 w-4 text-gray-400" />
-                        <span className="font-medium">{hospital.ecgCount.toLocaleString()}</span>
-                      </div>
+                      <span className="text-gray-400">-</span>
                     </TableCell>
                     <TableCell>
                       <Badge className={cn(
@@ -470,11 +480,11 @@ export function HospitalManagement() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               Annuler
             </Button>
-            <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700">
-              {isNewHospital ? 'Créer' : 'Enregistrer'}
+            <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700" disabled={saving}>
+              {saving ? 'Sauvegarde…' : isNewHospital ? 'Créer' : 'Enregistrer'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,8 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useEconomyStore } from '@/stores/useEconomyStore';
-import { useAdminStore } from '@/stores/useAdminStore';
+import { useFinancialConfig, DEFAULT_TARIF, DEFAULT_BONUS } from '@/hooks/useFinancials';
+import { useHospitalList } from '@/hooks/useHospitalList';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -34,19 +34,29 @@ import {
 } from "@/components/ui/collapsible";
 
 export function TarifSettings() {
-  const { tarifConfig, bonusConfig, hospitalTarifs, configHistory, updateTarifConfig, updateBonusConfig, setHospitalTarif, removeHospitalTarif, resetToDefaults } = useEconomyStore();
-  const { hospitals } = useAdminStore();
+  const { tarif: tarifConfig, bonus: bonusConfig, loading, updateTarif, updateBonus } = useFinancialConfig();
+  const { hospitals } = useHospitalList();
   const { toast } = useToast();
 
   // État local pour le formulaire
   const [localConfig, setLocalConfig] = useState(tarifConfig);
   const [localBonus, setLocalBonus] = useState(bonusConfig);
   const [hasChanges, setHasChanges] = useState(false);
+  // Tarifs hôpitaux (stockés localement uniquement dans cette version)
+  const hospitalTarifs: { hospitalId: string; customCost: number; enabled: boolean }[] = [];
+  const configHistory: { id: string; timestamp: string; userName: string; changes: string }[] = [];
+
+  // Synchroniser l'état local quand la config distante est chargée
+  useEffect(() => {
+    if (!loading) {
+      setLocalConfig(tarifConfig);
+      setLocalBonus(bonusConfig);
+    }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ⌨️ Raccourcis clavier
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+S : Sauvegarder
       if ((e.ctrlKey || e.metaKey) && e.key === 's' && hasChanges) {
         e.preventDefault();
         handleSave();
@@ -55,7 +65,7 @@ export function TarifSettings() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hasChanges, localConfig, localBonus]);
+  }, [hasChanges, localConfig, localBonus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mise à jour config locale
   const updateLocal = (field: keyof typeof localConfig, value: number) => {
@@ -71,8 +81,7 @@ export function TarifSettings() {
   };
 
   // Sauvegarde
-  const handleSave = () => {
-    // Validation
+  const handleSave = async () => {
     const total = localConfig.cardiologuePercent + localConfig.medecinPercent + localConfig.platformPercent;
     if (total !== 100) {
       toast({
@@ -91,14 +100,17 @@ export function TarifSettings() {
       });
     }
 
-    updateTarifConfig(localConfig, 'USR-004', 'Admin Principal');
-    updateBonusConfig(localBonus);
-    setHasChanges(false);
-    
-    toast({
-      title: "✅ Configuration sauvegardée",
-      description: "Les nouveaux paramètres tarifaires sont actifs.",
-    });
+    try {
+      await updateTarif(localConfig);
+      await updateBonus(localBonus);
+      setHasChanges(false);
+      toast({
+        title: "✅ Configuration sauvegardée",
+        description: "Les nouveaux paramètres tarifaires sont actifs.",
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de sauvegarder la configuration.' });
+    }
   };
 
   // Presets rapides
@@ -218,62 +230,23 @@ export function TarifSettings() {
             <p className="text-sm text-gray-500">ℹ️ Tarif standard appliqué à tous les ECG</p>
           </div>
 
-          {/* Tarifs spéciaux établissements - Collapsible */}
-          <Collapsible className="pt-3 border-t">
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-2 hover:bg-slate-50 rounded group">
-              <Label className="text-sm font-semibold cursor-pointer group-hover:text-indigo-600">
-                🏥 Tarifs spéciaux par établissement ({hospitalTarifs.filter(h => h.enabled).length} actifs)
-              </Label>
-              <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className="space-y-2">
-              {hospitals.map((hospital) => {
-                const customTarif = hospitalTarifs.find(h => h.hospitalId === hospital.id);
-                const isEnabled = customTarif?.enabled || false;
-                const customCost = customTarif?.customCost || localConfig.ecgCostPatient;
-                
-                return (
-                  <div key={hospital.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                    <Switch
-                      checked={isEnabled}
-                      onCheckedChange={(checked) => {
-                        setHospitalTarif(hospital.id, hospital.name, customCost, checked);
-                        setHasChanges(true);
-                      }}
-                    />
-                    <span className="text-sm font-medium flex-1">{hospital.name}</span>
-                    {isEnabled ? (
-                      <>
-                        <Input
-                          type="number"
-                          value={customCost}
-                          onChange={(e) => {
-                            setHospitalTarif(hospital.id, hospital.name, Number(e.target.value), true);
-                            setHasChanges(true);
-                          }}
-                          className="w-32 text-sm"
-                        />
-                        <span className="text-sm text-gray-600">FCFA</span>
-                        {customCost < localConfig.ecgCostPatient && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">💡 Réduit</Badge>
-                        )}
-                        {customCost > localConfig.ecgCostPatient && (
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-700">💰 Premium</Badge>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-sm text-gray-400">Tarif standard ({formatFCFA(localConfig.ecgCostPatient)})</span>
-                    )}
-                  </div>
-                );
-              })}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                💡 Coché = tarif spécifique, décoché = tarif standard
-              </p>
-            </CollapsibleContent>
-          </Collapsible>
+          {/* Tarifs spéciaux établissements - Info */}
+          <div className="pt-3 border-t">
+            <p className="text-sm font-semibold text-slate-700 mb-2">
+              🏥 Tarifs spéciaux par établissement ({hospitals.length} établissements)
+            </p>
+            <div className="space-y-2">
+              {hospitals.map((hospital) => (
+                <div key={hospital.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium flex-1">{hospital.name}</span>
+                  <span className="text-sm text-gray-400">Tarif standard ({formatFCFA(localConfig.ecgCostPatient)})</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              💡 Les tarifs différenciés par établissement seront disponibles dans une prochaine version.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -679,11 +652,12 @@ export function TarifSettings() {
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            onClick={() => {
+            onClick={async () => {
               if (window.confirm('Êtes-vous sûr de vouloir réinitialiser aux valeurs par défaut ?')) {
-                resetToDefaults();
-                setLocalConfig(tarifConfig);
-                setLocalBonus(bonusConfig);
+                await updateTarif(DEFAULT_TARIF);
+                await updateBonus(DEFAULT_BONUS);
+                setLocalConfig(DEFAULT_TARIF);
+                setLocalBonus(DEFAULT_BONUS);
                 setHasChanges(false);
                 toast({
                   title: "Configuration réinitialisée",

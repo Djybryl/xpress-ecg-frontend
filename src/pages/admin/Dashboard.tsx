@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAdminStore } from '@/stores/useAdminStore';
 import { useDashboardStats, useActivityLogs } from '@/hooks/useDashboardStats';
+import { useUserList } from '@/hooks/useUserList';
 import type { AdminStats } from '@/types/dashboard';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -24,11 +24,10 @@ import { cn } from '@/lib/utils';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
-  const { users } = useAdminStore();
+  const { users } = useUserList();
   const { stats, loading: statsLoading } = useDashboardStats<AdminStats>();
   const { logs: activityLogs, loading: logsLoading } = useActivityLogs(5);
 
-  // Utilisateurs en attente de validation (liste locale en attendant l'étape admin)
   const pendingUsers = users.filter(u => u.status === 'pending');
 
   const cardioCount = users.filter(u => u.role === 'cardiologue').length;

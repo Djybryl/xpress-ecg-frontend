@@ -4,14 +4,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Search,
-  Filter,
-  Download,
   Calendar,
   User,
   Building2,
   FileText,
   Activity,
-  TrendingUp,
   BarChart2,
   ChevronDown,
   ChevronUp,
@@ -30,95 +27,23 @@ import {
 import { format, parseISO, subMonths, isAfter } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
+import { useEcgList, ecgRef } from '@/hooks/useEcgList';
+import { useAuthContext } from '@/providers/AuthProvider';
 
-type ECGStatus = 'pending' | 'received' | 'analyzing' | 'completed';
+type ECGStatus = 'pending' | 'validated' | 'assigned' | 'analyzing' | 'completed';
 type Urgency = 'normal' | 'urgent';
 
-interface HistoryEntry {
-  id: string;
-  patientName: string;
-  patientAge: number;
-  patientGender: 'M' | 'F';
-  dateSent: string;
-  dateCompleted?: string;
-  status: ECGStatus;
-  urgency: Urgency;
-  cardiologist?: string;
-  hospital: string;
-  clinicalContext: string;
-  ecgDate: string;
-  conclusion?: string;
-  isNormal?: boolean;
-  reportId?: string;
-}
-
-const mockHistory: HistoryEntry[] = [
-  {
-    id: 'ECG-2024-0409', patientName: 'Pierre Dupont', patientAge: 58, patientGender: 'M',
-    dateSent: '2024-12-25T08:30:00', dateCompleted: '2024-12-25T10:15:00',
-    status: 'completed', urgency: 'normal', cardiologist: 'Dr. Sophie Bernard',
-    hospital: 'CHU de Yaoundé', clinicalContext: 'Palpitations, bilan cardiovasculaire',
-    ecgDate: '2024-12-25', conclusion: 'ECG normal, rythme sinusal régulier.', isNormal: true, reportId: 'RPT-001',
-  },
-  {
-    id: 'ECG-2024-0405', patientName: 'Robert Petit', patientAge: 72, patientGender: 'M',
-    dateSent: '2024-12-20T09:00:00', dateCompleted: '2024-12-20T10:30:00',
-    status: 'completed', urgency: 'urgent', cardiologist: 'Dr. François Dubois',
-    hospital: 'Hôpital Central', clinicalContext: 'Syncope, fibrillation auriculaire connue',
-    ecgDate: '2024-12-20', conclusion: 'Fibrillation auriculaire à réponse ventriculaire rapide. Cardioversion à discuter.', isNormal: false, reportId: 'RPT-002',
-  },
-  {
-    id: 'ECG-2024-0401', patientName: 'Anne Lecomte', patientAge: 45, patientGender: 'F',
-    dateSent: '2024-12-15T14:00:00', dateCompleted: '2024-12-15T16:45:00',
-    status: 'completed', urgency: 'normal', cardiologist: 'Dr. Sophie Bernard',
-    hospital: 'Clinique des Princes', clinicalContext: 'Bilan pré-opératoire',
-    ecgDate: '2024-12-15', conclusion: 'ECG normal.', isNormal: true, reportId: 'RPT-003',
-  },
-  {
-    id: 'ECG-2024-0395', patientName: 'Michel Garcia', patientAge: 64, patientGender: 'M',
-    dateSent: '2024-12-10T10:30:00', dateCompleted: '2024-12-10T13:00:00',
-    status: 'completed', urgency: 'normal', cardiologist: 'Dr. Sophie Bernard',
-    hospital: 'CHU de Yaoundé', clinicalContext: 'HTA, suivi cardiologique',
-    ecgDate: '2024-12-10', conclusion: 'Hypertrophie ventriculaire gauche. Critères de Sokolow positifs.', isNormal: false, reportId: 'RPT-004',
-  },
-  {
-    id: 'ECG-2024-0388', patientName: 'Claire Moreau', patientAge: 38, patientGender: 'F',
-    dateSent: '2024-11-28T08:00:00', dateCompleted: '2024-11-28T09:30:00',
-    status: 'completed', urgency: 'urgent', cardiologist: 'Dr. François Dubois',
-    hospital: 'Hôpital Central', clinicalContext: 'Douleur thoracique aiguë',
-    ecgDate: '2024-11-28', conclusion: 'Sus-décalage ST en V1-V4. IDM antérieur aigu. Prise en charge urgente.', isNormal: false, reportId: 'RPT-005',
-  },
-  {
-    id: 'ECG-2024-0412', patientName: 'Sophie Martin', patientAge: 45, patientGender: 'F',
-    dateSent: '2024-12-25T14:30:00', status: 'pending', urgency: 'urgent',
-    hospital: 'CHU de Yaoundé', clinicalContext: 'Douleur thoracique atypique',
-    ecgDate: '2024-12-25',
-  },
-  {
-    id: 'ECG-2024-0411', patientName: 'Lucas Bernard', patientAge: 62, patientGender: 'M',
-    dateSent: '2024-12-25T11:00:00', status: 'received', urgency: 'normal',
-    hospital: 'CHU de Yaoundé', clinicalContext: 'Bilan pré-opératoire',
-    ecgDate: '2024-12-25',
-  },
-  {
-    id: 'ECG-2024-0407', patientName: 'Jean-Paul Mercier', patientAge: 55, patientGender: 'M',
-    dateSent: '2024-12-25T06:00:00', dateCompleted: '2024-12-25T07:45:00',
-    status: 'completed', urgency: 'normal', cardiologist: 'Dr. Sophie Bernard',
-    hospital: 'Clinique des Princes', clinicalContext: 'Suivi post-IDM',
-    ecgDate: '2024-12-25', conclusion: 'Rythme sinusal régulier. Ondes Q séquellaires en V1-V4.', isNormal: false, reportId: 'RPT-006',
-  },
-];
-
 const statusConfig: Record<ECGStatus, { label: string; icon: React.ElementType; className: string; step: number }> = {
-  pending:   { label: 'En attente',    icon: Clock,        className: 'bg-amber-100 text-amber-700 border-amber-300',  step: 1 },
-  received:  { label: 'Reçu',          icon: Activity,     className: 'bg-blue-100 text-blue-700 border-blue-300',     step: 2 },
+  pending:   { label: 'En attente',    icon: Clock,        className: 'bg-amber-100 text-amber-700 border-amber-300',    step: 1 },
+  validated: { label: 'Validé',        icon: Activity,     className: 'bg-blue-100 text-blue-700 border-blue-300',       step: 2 },
+  assigned:  { label: 'Assigné',       icon: Activity,     className: 'bg-purple-100 text-purple-700 border-purple-300', step: 2 },
   analyzing: { label: 'En analyse',    icon: Activity,     className: 'bg-indigo-100 text-indigo-700 border-indigo-300', step: 3 },
-  completed: { label: 'Interprété',    icon: CheckCircle2, className: 'bg-green-100 text-green-700 border-green-300',  step: 4 },
+  completed: { label: 'Interprété',    icon: CheckCircle2, className: 'bg-green-100 text-green-700 border-green-300',    step: 4 },
 };
 
 const STEPS: { key: ECGStatus; label: string }[] = [
   { key: 'pending',   label: 'Envoyé' },
-  { key: 'received',  label: 'Reçu' },
+  { key: 'assigned',  label: 'Reçu' },
   { key: 'analyzing', label: 'Analyse' },
   { key: 'completed', label: 'Rapport' },
 ];
@@ -156,6 +81,12 @@ function StatusTimeline({ status }: { status: ECGStatus }) {
 }
 
 export function HistoryPage() {
+  const { user } = useAuthContext();
+  const { records, loading, error } = useEcgList({
+    referring_doctor_id: user?.id,
+    limit: 300,
+  });
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ECGStatus | 'all'>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<Urgency | 'all'>('all');
@@ -171,44 +102,45 @@ export function HistoryPage() {
       : periodFilter === '6months' ? subMonths(new Date(), 6)
       : null;
 
-    return mockHistory.filter(e => {
+    return records.filter(e => {
       if (statusFilter !== 'all' && e.status !== statusFilter) return false;
       if (urgencyFilter !== 'all' && e.urgency !== urgencyFilter) return false;
-      if (cutoff && !isAfter(parseISO(e.dateSent), cutoff)) return false;
+      if (cutoff && !isAfter(parseISO(e.created_at), cutoff)) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
-        return e.patientName.toLowerCase().includes(q) || e.id.toLowerCase().includes(q) || e.hospital.toLowerCase().includes(q);
+        return e.patient_name.toLowerCase().includes(q) || ecgRef(e).toLowerCase().includes(q) || e.medical_center.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [search, statusFilter, urgencyFilter, periodFilter]);
+  }, [records, search, statusFilter, urgencyFilter, periodFilter]);
 
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
-  // Stats résumées
   const stats = useMemo(() => ({
-    total:     mockHistory.length,
-    completed: mockHistory.filter(e => e.status === 'completed').length,
-    pending:   mockHistory.filter(e => e.status !== 'completed').length,
-    urgent:    mockHistory.filter(e => e.urgency === 'urgent').length,
-    normal:    mockHistory.filter(e => e.isNormal === true).length,
-    abnormal:  mockHistory.filter(e => e.isNormal === false).length,
-  }), []);
+    total:     records.length,
+    completed: records.filter(e => e.status === 'completed').length,
+    pending:   records.filter(e => e.status !== 'completed').length,
+    urgent:    records.filter(e => e.urgency === 'urgent').length,
+  }), [records]);
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+      )}
       {/* En-tête compact + KPIs en pills */}
       <div className="flex items-center gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 mr-2">
           <Clock className="h-5 w-5 text-emerald-600" />
           Historique ECG
         </h1>
+        {loading && <span className="text-xs text-gray-400 animate-pulse ml-2">Chargement…</span>}
         {[
-          { label: 'Total',      value: stats.total,     color: 'border-indigo-300 text-indigo-700 bg-indigo-50', icon: BarChart2 },
-          { label: 'Interprétés', value: stats.completed, color: 'border-green-300 text-green-700 bg-green-50',  icon: CheckCircle2 },
-          { label: 'En attente', value: stats.pending,   color: 'border-amber-300 text-amber-700 bg-amber-50',  icon: Clock },
-          { label: 'Urgents',    value: stats.urgent,    color: 'border-red-300 text-red-700 bg-red-50',        icon: AlertCircle },
+          { label: 'Total',       value: stats.total,     color: 'border-indigo-300 text-indigo-700 bg-indigo-50', icon: BarChart2 },
+          { label: 'Interprétés', value: stats.completed, color: 'border-green-300 text-green-700 bg-green-50',   icon: CheckCircle2 },
+          { label: 'En attente',  value: stats.pending,   color: 'border-amber-300 text-amber-700 bg-amber-50',   icon: Clock },
+          { label: 'Urgents',     value: stats.urgent,    color: 'border-red-300 text-red-700 bg-red-50',         icon: AlertCircle },
         ].map(k => {
           const Icon = k.icon;
           return (
@@ -241,7 +173,7 @@ export function HistoryPage() {
               <SelectContent>
                 <SelectItem value="all">Tous statuts</SelectItem>
                 <SelectItem value="pending">En attente</SelectItem>
-                <SelectItem value="received">Reçu</SelectItem>
+                <SelectItem value="assigned">Assigné</SelectItem>
                 <SelectItem value="analyzing">En analyse</SelectItem>
                 <SelectItem value="completed">Interprété</SelectItem>
               </SelectContent>
@@ -284,7 +216,7 @@ export function HistoryPage() {
           </Card>
         ) : (
           paginated.map(entry => {
-            const cfg = statusConfig[entry.status];
+            const cfg = statusConfig[entry.status] ?? statusConfig['pending'];
             const Icon = cfg.icon;
             const isExpanded = expandedId === entry.id;
             return (
@@ -295,56 +227,39 @@ export function HistoryPage() {
                     onClick={() => setExpandedId(isExpanded ? null : entry.id)}
                   >
                     <div className="flex items-start gap-4">
-                      {/* Icône statut */}
                       <div className={cn("p-2 rounded-lg border shrink-0 mt-0.5", cfg.className)}>
                         <Icon className="h-4 w-4" />
                       </div>
 
-                      {/* Infos principales */}
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-gray-800">{entry.patientName}</span>
-                          <span className="font-mono text-xs text-gray-400">{entry.id}</span>
+                          <span className="font-semibold text-gray-800">{entry.patient_name}</span>
+                          <span className="font-mono text-xs text-gray-400">{ecgRef(entry)}</span>
                           {entry.urgency === 'urgent' && (
                             <Badge variant="destructive" className="text-xs">Urgent</Badge>
                           )}
                           <Badge variant="outline" className={cn("text-xs border", cfg.className)}>
                             {cfg.label}
                           </Badge>
-                          {entry.status === 'completed' && (
-                            <Badge variant="outline" className={cn(
-                              "text-xs border",
-                              entry.isNormal ? 'border-green-400 text-green-700 bg-green-50' : 'border-amber-400 text-amber-700 bg-amber-50'
-                            )}>
-                              {entry.isNormal ? '✓ Normal' : '⚠ Anormal'}
-                            </Badge>
-                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-4 mt-1 text-xs text-gray-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {format(parseISO(entry.dateSent), 'dd MMM yyyy HH:mm', { locale: fr })}
+                            {format(parseISO(entry.created_at), 'dd MMM yyyy HH:mm', { locale: fr })}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />{entry.hospital}
+                            <Building2 className="h-3 w-3" />{entry.medical_center}
                           </span>
-                          {entry.cardiologist && (
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />{entry.cardiologist}
-                            </span>
-                          )}
                         </div>
 
-                        {/* Timeline */}
                         <div className="mt-3 max-w-xs">
-                          <StatusTimeline status={entry.status} />
+                          <StatusTimeline status={entry.status as ECGStatus} />
                         </div>
                       </div>
 
-                      {/* Toggle + actions */}
                       <div className="flex flex-col items-end gap-2">
-                        {entry.reportId && (
+                        {entry.status === 'completed' && (
                           <Button variant="outline" size="sm" className="text-xs h-7">
                             <FileText className="h-3 w-3 mr-1" /> Rapport
                           </Button>
@@ -356,35 +271,23 @@ export function HistoryPage() {
                     </div>
                   </button>
 
-                  {/* Détail expandé */}
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t pt-3 bg-gray-50 rounded-b-lg">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Contexte clinique</p>
-                          <p className="text-gray-700">{entry.clinicalContext}</p>
+                          <p className="text-gray-700">{entry.clinical_context ?? '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Patient</p>
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Date ECG</p>
                           <p className="text-gray-700">
-                            {entry.patientGender === 'M' ? 'Homme' : 'Femme'}, {entry.patientAge} ans — ECG du {format(parseISO(entry.ecgDate), 'dd/MM/yyyy', { locale: fr })}
+                            {entry.date ? format(parseISO(entry.date), 'dd/MM/yyyy', { locale: fr }) : '—'}
                           </p>
                         </div>
-                        {entry.conclusion && (
-                          <div className="sm:col-span-2">
-                            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Conclusion</p>
-                            <div className={cn(
-                              "p-3 rounded-lg border text-gray-800",
-                              entry.isNormal ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
-                            )}>
-                              {entry.conclusion}
-                            </div>
-                          </div>
-                        )}
-                        {entry.dateCompleted && (
+                        {entry.analyzed_at && (
                           <div>
                             <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Date d'interprétation</p>
-                            <p className="text-gray-700">{format(parseISO(entry.dateCompleted), 'dd MMM yyyy à HH:mm', { locale: fr })}</p>
+                            <p className="text-gray-700">{format(parseISO(entry.analyzed_at), 'dd MMM yyyy à HH:mm', { locale: fr })}</p>
                           </div>
                         )}
                       </div>

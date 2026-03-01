@@ -24,19 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAdminStore } from '@/stores/useAdminStore';
-import { useEconomyStore } from '@/stores/useEconomyStore';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useUserList } from '@/hooks/useUserList';
+import type { AdminStats } from '@/types/dashboard';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function Statistics() {
-  const { getStats, hospitals, users } = useAdminStore();
-  const { emoluments, tarifConfig } = useEconomyStore();
-  const stats = getStats();
+  const { stats, loading: statsLoading } = useDashboardStats<AdminStats>();
+  const { users } = useUserList();
   const [period, setPeriod] = useState('month');
   const [activeTab, setActiveTab] = useState('global');
 
-  // Données simulées pour les graphiques
   const weeklyData = [
     { day: 'Lun', count: 18 },
     { day: 'Mar', count: 24 },
@@ -53,13 +52,6 @@ export function Statistics() {
     { month: 'Dec', ecg: 523, users: 8 },
   ];
 
-  const hospitalStats = hospitals.map(h => ({
-    name: h.name,
-    ecgCount: h.ecgCount,
-    userCount: h.userCount,
-    percentage: Math.round((h.ecgCount / stats.totalECG) * 100)
-  })).sort((a, b) => b.ecgCount - a.ecgCount);
-
   const roleDistribution = [
     { role: 'Cardiologues', count: users.filter(u => u.role === 'cardiologue').length, color: 'bg-indigo-500' },
     { role: 'Médecins', count: users.filter(u => u.role === 'medecin').length, color: 'bg-emerald-500' },
@@ -69,17 +61,9 @@ export function Statistics() {
 
   const maxWeeklyCount = Math.max(...weeklyData.map(d => d.count));
 
-  // Format FCFA
-  const formatFCFA = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' FCFA';
-  };
-
-  // Calculs financiers
-  const selectedPeriod = '2024-12';
-  const periodEmoluments = emoluments.filter(e => e.period === selectedPeriod);
-  const totalRevenue = periodEmoluments.reduce((sum, e) => sum + (e.ecgCount * tarifConfig.ecgCostPatient), 0);
-  const totalEmoluments = periodEmoluments.reduce((sum, e) => sum + e.totalGross, 0);
-  const platformRevenue = totalRevenue - totalEmoluments;
+  const totalECG = stats?.total_ecg_month ?? 0;
+  const totalUsers = stats?.total_users ?? 0;
+  const totalHospitals = stats?.total_hospitals ?? 0;
 
   return (
     <div className="space-y-3">
@@ -92,17 +76,17 @@ export function Statistics() {
           </h1>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
             <Activity className="h-3 w-3" />
-            <span className="font-bold">{stats.totalECG}</span>
-            <span className="opacity-75">ECG total</span>
+            {statsLoading ? <span className="inline-block w-5 h-3 bg-indigo-200 rounded animate-pulse" /> : <span className="font-bold">{totalECG}</span>}
+            <span className="opacity-75">ECG ce mois</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
             <Users className="h-3 w-3" />
-            <span className="font-bold">{stats.totalUsers}</span>
+            {statsLoading ? <span className="inline-block w-5 h-3 bg-green-200 rounded animate-pulse" /> : <span className="font-bold">{totalUsers}</span>}
             <span className="opacity-75">utilisateurs</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700">
             <Building2 className="h-3 w-3" />
-            <span className="font-bold">{stats.totalHospitals}</span>
+            {statsLoading ? <span className="inline-block w-5 h-3 bg-emerald-200 rounded animate-pulse" /> : <span className="font-bold">{totalHospitals}</span>}
             <span className="opacity-75">établissements</span>
           </span>
         </div>
@@ -121,14 +105,10 @@ export function Statistics() {
 
       {/* Onglets */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-1 max-w-[160px]">
           <TabsTrigger value="global" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             Vue Globale
-          </TabsTrigger>
-          <TabsTrigger value="financial" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Financier
           </TabsTrigger>
         </TabsList>
 
@@ -141,8 +121,8 @@ export function Statistics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-indigo-600 text-sm font-medium">ECG Total</p>
-                <p className="text-3xl font-bold text-indigo-700">{stats.totalECG.toLocaleString()}</p>
+                <p className="text-indigo-600 text-sm font-medium">ECG ce mois</p>
+                <p className="text-3xl font-bold text-indigo-700">{statsLoading ? '…' : totalECG.toLocaleString()}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <ArrowUp className="h-3 w-3 text-green-600" />
                   <span className="text-xs text-green-600">+12% vs mois dernier</span>
@@ -159,8 +139,8 @@ export function Statistics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-sm font-medium">Ce mois</p>
-                <p className="text-3xl font-bold text-green-700">{stats.ecgThisMonth}</p>
+                <p className="text-green-600 text-sm font-medium">Aujourd'hui</p>
+                <p className="text-3xl font-bold text-green-700">{statsLoading ? '…' : (stats?.total_ecg_today ?? '-')}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <ArrowUp className="h-3 w-3 text-green-600" />
                   <span className="text-xs text-green-600">+8% vs mois dernier</span>
@@ -177,8 +157,8 @@ export function Statistics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-600 text-sm font-medium">Temps moyen</p>
-                <p className="text-3xl font-bold text-blue-700">{stats.avgResponseTime}</p>
+                <p className="text-blue-600 text-sm font-medium">En attente</p>
+                <p className="text-3xl font-bold text-blue-700">{statsLoading ? '…' : (stats?.pending_ecg ?? '-')}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <ArrowDown className="h-3 w-3 text-green-600" />
                   <span className="text-xs text-green-600">-5min vs semaine dernière</span>
@@ -195,8 +175,8 @@ export function Statistics() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-600 text-sm font-medium">ECG Normaux</p>
-                <p className="text-3xl font-bold text-emerald-700">{stats.normalECGPercent}%</p>
+                <p className="text-emerald-600 text-sm font-medium">Complétés</p>
+                <p className="text-3xl font-bold text-emerald-700">{statsLoading ? '…' : (stats?.completed_ecg ?? '-')}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <span className="text-xs text-gray-500">des interprétations</span>
                 </div>
@@ -244,45 +224,32 @@ export function Statistics() {
           </CardContent>
         </Card>
 
-        {/* Répartition par établissement */}
+        {/* Résumé des statuts ECG */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-indigo-600" />
-              ECG par établissement
+              <Activity className="h-5 w-5 text-indigo-600" />
+              Statuts des ECG
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {hospitalStats.map((hospital, idx) => (
-                <div key={hospital.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "w-2 h-2 rounded-full",
-                        idx === 0 && "bg-indigo-500",
-                        idx === 1 && "bg-emerald-500",
-                        idx === 2 && "bg-amber-500",
-                        idx === 3 && "bg-slate-500"
-                      )} />
-                      <span className="text-sm font-medium">{hospital.name}</span>
+              {[
+                { label: 'En attente', value: stats?.pending_ecg ?? 0, color: '[&>div]:bg-amber-500' },
+                { label: 'Complétés', value: stats?.completed_ecg ?? 0, color: '[&>div]:bg-green-500' },
+              ].map(item => {
+                const total = (stats?.pending_ecg ?? 0) + (stats?.completed_ecg ?? 0);
+                const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                return (
+                  <div key={item.label} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-sm text-gray-500">{statsLoading ? '…' : `${item.value} (${pct}%)`}</span>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {hospital.ecgCount.toLocaleString()} ({hospital.percentage}%)
-                    </span>
+                    <Progress value={statsLoading ? 0 : pct} className={cn("h-2", item.color)} />
                   </div>
-                  <Progress 
-                    value={hospital.percentage} 
-                    className={cn(
-                      "h-2",
-                      idx === 0 && "[&>div]:bg-indigo-500",
-                      idx === 1 && "[&>div]:bg-emerald-500",
-                      idx === 2 && "[&>div]:bg-amber-500",
-                      idx === 3 && "[&>div]:bg-slate-500"
-                    )}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -313,7 +280,7 @@ export function Statistics() {
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Total utilisateurs</span>
-                <span className="font-bold">{stats.totalUsers}</span>
+                <span className="font-bold">{statsLoading ? '…' : totalUsers}</span>
               </div>
             </div>
           </CardContent>
@@ -384,225 +351,6 @@ export function Statistics() {
           </CardContent>
         </Card>
       </div>
-        </TabsContent>
-
-        {/* Onglet Financier */}
-        <TabsContent value="financial" className="space-y-6 mt-6">
-          {/* KPIs financiers */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-600 text-sm font-medium">CA du mois</p>
-                    <p className="text-2xl font-bold text-green-700">{formatFCFA(totalRevenue)}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <ArrowUp className="h-3 w-3 text-green-600" />
-                      <span className="text-xs text-green-600">+12% vs mois dernier</span>
-                    </div>
-                  </div>
-                  <div className="h-12 w-12 bg-green-200 rounded-full flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-700" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-indigo-600 text-sm font-medium">Émoluments</p>
-                    <p className="text-2xl font-bold text-indigo-700">{formatFCFA(totalEmoluments)}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-xs text-indigo-600">{Math.round((totalEmoluments / totalRevenue) * 100)}% du CA</span>
-                    </div>
-                  </div>
-                  <div className="h-12 w-12 bg-indigo-200 rounded-full flex items-center justify-center">
-                    <Users className="h-6 w-6 text-indigo-700" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-600 text-sm font-medium">Marge plateforme</p>
-                    <p className="text-2xl font-bold text-slate-700">{formatFCFA(platformRevenue)}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-xs text-slate-600">{tarifConfig.platformPercent}% du CA</span>
-                    </div>
-                  </div>
-                  <div className="h-12 w-12 bg-slate-200 rounded-full flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-slate-700" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Répartition des revenus */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-indigo-600" />
-                Répartition des revenus ({selectedPeriod})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <span className="w-3 h-3 bg-indigo-500 rounded"></span>
-                      👨‍⚕️ Cardiologues ({tarifConfig.cardiologuePercent}%)
-                    </span>
-                    <span className="text-sm font-bold">{formatFCFA(totalRevenue * tarifConfig.cardiologuePercent / 100)}</span>
-                  </div>
-                  <Progress 
-                    value={tarifConfig.cardiologuePercent} 
-                    className="h-3 [&>div]:bg-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <span className="w-3 h-3 bg-emerald-500 rounded"></span>
-                      🩺 Médecins ({tarifConfig.medecinPercent}%)
-                    </span>
-                    <span className="text-sm font-bold">{formatFCFA(totalRevenue * tarifConfig.medecinPercent / 100)}</span>
-                  </div>
-                  <Progress 
-                    value={tarifConfig.medecinPercent} 
-                    className="h-3 [&>div]:bg-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <span className="w-3 h-3 bg-slate-500 rounded"></span>
-                      🏢 Plateforme ({tarifConfig.platformPercent}%)
-                    </span>
-                    <span className="text-sm font-bold">{formatFCFA(totalRevenue * tarifConfig.platformPercent / 100)}</span>
-                  </div>
-                  <Progress 
-                    value={tarifConfig.platformPercent} 
-                    className="h-3 [&>div]:bg-slate-500"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Émoluments */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Users className="h-5 w-5 text-amber-600" />
-                  Top Cardiologues (émoluments)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {periodEmoluments
-                    .filter(e => e.userRole === 'cardiologue')
-                    .sort((a, b) => b.totalGross - a.totalGross)
-                    .slice(0, 5)
-                    .map((emol, idx) => (
-                      <div key={emol.userId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`}</span>
-                          <span className="text-sm font-medium">{emol.userName}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-indigo-600">{formatFCFA(emol.totalGross)}</p>
-                          <p className="text-xs text-gray-500">{emol.ecgCount} ECG</p>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-blue-600" />
-                  Revenus par établissement
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {hospitals.slice(0, 5).map((hospital, idx) => {
-                    const hospitalRevenue = (hospital.ecgCount * tarifConfig.ecgCostPatient);
-                    const percent = (hospitalRevenue / totalRevenue) * 100;
-                    
-                    return (
-                      <div key={hospital.id} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{hospital.name}</span>
-                          <span className="text-sm text-gray-600">{formatFCFA(hospitalRevenue)}</span>
-                        </div>
-                        <Progress 
-                          value={percent} 
-                          className={cn(
-                            "h-2",
-                            idx === 0 && "[&>div]:bg-indigo-500",
-                            idx === 1 && "[&>div]:bg-emerald-500",
-                            idx === 2 && "[&>div]:bg-amber-500",
-                            idx >= 3 && "[&>div]:bg-slate-400"
-                          )}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Indicateurs économiques */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Activity className="h-5 w-5 text-indigo-600" />
-                Indicateurs économiques clés
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-blue-700">Coût moyen ECG</span>
-                    <span className="font-bold text-blue-700">{formatFCFA(tarifConfig.ecgCostPatient)}</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-indigo-700">Émolument moyen cardio</span>
-                    <span className="font-bold text-indigo-700">
-                      {formatFCFA((tarifConfig.ecgCostPatient * tarifConfig.cardiologuePercent) / 100)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-emerald-700">Émolument moyen médecin</span>
-                    <span className="font-bold text-emerald-700">
-                      {formatFCFA((tarifConfig.ecgCostPatient * tarifConfig.medecinPercent) / 100)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

@@ -36,25 +36,31 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useEconomyStore, UserEmolument } from '@/stores/useEconomyStore';
+import { useEmoluments, useFinancialConfig, UserEmolument } from '@/hooks/useFinancials';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export function Emoluments() {
-  const { emoluments, tarifConfig, updateEmolumentStatus, validateMonth, generateMonthlyReport, getMonthlyReport } = useEconomyStore();
+  const { emoluments, period: hookPeriod, setPeriod: setHookPeriod, loading, updateStatus } = useEmoluments();
+  const { tarif: tarifConfig } = useFinancialConfig();
   const { toast } = useToast();
 
-  const [selectedPeriod, setSelectedPeriod] = useState('2024-12');
+  const [selectedPeriod, setSelectedPeriod] = useState(hookPeriod);
   const [selectedRole, setSelectedRole] = useState<'all' | 'cardiologue' | 'medecin'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'amount' | 'ecg' | 'name'>('amount');
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
 
+  const handlePeriodChange = (p: string) => {
+    setSelectedPeriod(p);
+    setHookPeriod(p);
+  };
+
   // Filtrage et tri
   const filteredEmoluments = useMemo(() => {
-    let filtered = emoluments.filter(e => e.period === selectedPeriod);
+    let filtered = [...emoluments];
     
     if (selectedRole !== 'all') {
       filtered = filtered.filter(e => e.userRole === selectedRole);
@@ -100,14 +106,18 @@ export function Emoluments() {
   };
 
   // Validation du mois
-  const handleValidateMonth = () => {
+  const handleValidateMonth = async () => {
     if (window.confirm(`Confirmer la validation du mois ${selectedPeriod} ?\n\nLes montants seront verrouillés et non modifiables.`)) {
-      validateMonth(selectedPeriod, 'USR-004', 'Admin Principal');
-      generateMonthlyReport(selectedPeriod);
-      toast({
-        title: "✅ Mois validé",
-        description: `Le mois ${selectedPeriod} a été clôturé.`,
-      });
+      try {
+        const pending = emoluments.filter(e => e.status === 'pending');
+        await Promise.all(pending.map(e => updateStatus(e.userId, 'validated')));
+        toast({
+          title: "✅ Mois validé",
+          description: `Le mois ${selectedPeriod} a été clôturé.`,
+        });
+      } catch {
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de valider le mois.' });
+      }
     }
   };
 
@@ -139,6 +149,27 @@ export function Emoluments() {
     });
   };
 
+  // Générer les 6 derniers mois pour le sélecteur de période
+  const periodOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = d.toISOString().slice(0, 7);
+      const label = d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' });
+      opts.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    }
+    return opts;
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-500">
+        <Clock className="h-5 w-5 animate-spin mr-2" /> Chargement des émoluments…
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* En-tête + Pills */}
@@ -160,14 +191,14 @@ export function Emoluments() {
             <span className="opacity-75">bénéficiaires</span>
           </span>
         </div>
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+        <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
           <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="Période" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2024-12">Décembre 2024</SelectItem>
-              <SelectItem value="2024-11">Novembre 2024</SelectItem>
-              <SelectItem value="2024-10">Octobre 2024</SelectItem>
+              {periodOptions.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
       </div>
@@ -261,7 +292,11 @@ export function Emoluments() {
                   emolument={emolument}
                   formatFCFA={formatFCFA}
                   onUpdate={(updates) => {
-                    updateEmolumentStatus(emolument.userId, emolument.period, emolument.status, updates);
+                    updateStatus(emolument.userId, updates.status ?? emolument.status, {
+                      paymentMethod: updates.paymentMethod,
+                      paymentRef: updates.paymentRef,
+                      notes: updates.notes,
+                    });
                   }}
                 />
               ))

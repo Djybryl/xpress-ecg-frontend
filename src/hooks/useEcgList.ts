@@ -4,6 +4,8 @@ import { api, ApiError } from '@/lib/apiClient';
 /** Enregistrement ECG tel que retourné par le backend */
 export interface EcgRecordItem {
   id: string;
+  /** Référence humaine lisible — format ECG-YYYY-NNNNNN (ex: ECG-2025-000042) */
+  reference: string;
   patient_name: string;
   patient_id: string | null;
   medical_center: string;
@@ -42,6 +44,15 @@ interface UseEcgListResult {
   loading: boolean;
   error: string | null;
   refetch: () => void;
+}
+
+/**
+ * Retourne la référence humaine lisible d'un ECG.
+ * Utilise `reference` si disponible (données réelles), sinon replie sur `id`.
+ * Permet de gérer les stores mock (sans `reference`) sans crash.
+ */
+export function ecgRef(ecg: { id: string; reference?: string }): string {
+  return ecg.reference ?? ecg.id;
 }
 
 /**

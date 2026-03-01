@@ -26,23 +26,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { usePatientStore } from '@/stores/usePatientStore';
+import { usePatientList } from '@/hooks/usePatientList';
 
 const PAGE_SIZE = 10;
 
 export function PatientsSecretaire() {
-  const { patients, searchPatients } = usePatientStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [ecgFilter, setEcgFilter] = useState<'all' | 'with_ecg' | 'recent'>('all');
   const [page, setPage] = useState(1);
 
-  const withECG = patients.filter(p => p.ecgCount > 0).length;
-  const recentECG = patients.filter(p => p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
+  const { patients, loading, error } = usePatientList({ search: searchTerm || undefined, limit: 200 });
 
-  const basePatients = searchTerm ? searchPatients(searchTerm) : patients;
-  const filteredPatients = basePatients.filter(p => {
-    if (ecgFilter === 'with_ecg') return p.ecgCount > 0;
-    if (ecgFilter === 'recent') return p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const withECG = patients.filter(p => (p.ecg_count ?? 0) > 0).length;
+  const recentECG = patients.filter(p => p.last_ecg_date && new Date(p.last_ecg_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
+
+  const filteredPatients = patients.filter(p => {
+    if (ecgFilter === 'with_ecg') return (p.ecg_count ?? 0) > 0;
+    if (ecgFilter === 'recent') return p.last_ecg_date && new Date(p.last_ecg_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return true;
   });
 
@@ -53,7 +53,8 @@ export function PatientsSecretaire() {
     setPage(1);
   }, [searchTerm, ecgFilter]);
 
-  const calculateAge = (dateOfBirth: string) => {
+  const calculateAge = (dateOfBirth: string | null) => {
+    if (!dateOfBirth) return null;
     const today = new Date();
     const birth = new Date(dateOfBirth);
     let age = today.getFullYear() - birth.getFullYear();
@@ -69,6 +70,9 @@ export function PatientsSecretaire() {
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -76,7 +80,7 @@ export function PatientsSecretaire() {
             Patients
           </h1>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
-            <span className="font-bold">{patients.length}</span>
+            {loading ? <span className="animate-pulse">…</span> : <span className="font-bold">{patients.length}</span>}
             <span className="opacity-75">total</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
@@ -146,10 +150,10 @@ export function PatientsSecretaire() {
                       <div
                         className={cn(
                           'w-9 h-9 rounded-full flex items-center justify-center',
-                          patient.gender === 'M' ? 'bg-blue-100' : 'bg-pink-100'
+                          patient.gender === 'M' ? 'bg-blue-100' : patient.gender === 'F' ? 'bg-pink-100' : 'bg-gray-100'
                         )}
                       >
-                        <User className={cn('h-4 w-4', patient.gender === 'M' ? 'text-blue-600' : 'text-pink-600')} />
+                        <User className={cn('h-4 w-4', patient.gender === 'M' ? 'text-blue-600' : patient.gender === 'F' ? 'text-pink-600' : 'text-gray-400')} />
                       </div>
                       <span className="font-medium">{patient.name}</span>
                     </div>
@@ -159,10 +163,12 @@ export function PatientsSecretaire() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span>{calculateAge(patient.dateOfBirth)} ans</span>
-                      <Badge variant="outline" className={cn('text-xs', patient.gender === 'M' ? 'border-blue-200 text-blue-700' : 'border-pink-200 text-pink-700')}>
-                        {patient.gender === 'M' ? 'H' : 'F'}
-                      </Badge>
+                      {patient.date_of_birth ? <span>{calculateAge(patient.date_of_birth)} ans</span> : <span className="text-gray-400">-</span>}
+                      {patient.gender && (
+                        <Badge variant="outline" className={cn('text-xs', patient.gender === 'M' ? 'border-blue-200 text-blue-700' : 'border-pink-200 text-pink-700')}>
+                          {patient.gender === 'M' ? 'H' : 'F'}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -184,11 +190,11 @@ export function PatientsSecretaire() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
-                      {patient.ecgCount}
+                      {patient.ecg_count ?? 0}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-gray-600 text-sm">
-                    {patient.lastEcgDate ? formatDate(patient.lastEcgDate) : '-'}
+                    {patient.last_ecg_date ? formatDate(patient.last_ecg_date) : '-'}
                   </TableCell>
                 </TableRow>
               ))}

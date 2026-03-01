@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { usePatientStore, type Patient } from "@/stores/usePatientStore";
+import { usePatientList, type PatientItem } from "@/hooks/usePatientList";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { api, ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,7 @@ const clinicalTemplates = [
 
 interface FormData {
   // Étape 1 : Patient
-  patient: Patient | null;
+  patient: PatientItem | null;
   isNewPatient: boolean;
   newPatient: {
     name: string;
@@ -149,7 +149,7 @@ export function NewECGPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuthContext();
-  const { patients, searchPatients, addPatient } = usePatientStore();
+  const { patients, loading: patientsLoading } = usePatientList({ limit: 200 });
   
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -193,11 +193,11 @@ export function NewECGPage() {
         patient: formData.patient ? {
           id:          formData.patient.id,
           name:        formData.patient.name,
-          dateOfBirth: formData.patient.dateOfBirth,
-          gender:      formData.patient.gender,
-          phone:       formData.patient.phone,
-          email:       formData.patient.email,
-          ecgCount:    formData.patient.ecgCount,
+          dateOfBirth: formData.patient.date_of_birth ?? '',
+          gender:      formData.patient.gender ?? 'M',
+          phone:       formData.patient.phone ?? undefined,
+          email:       formData.patient.email ?? undefined,
+          ecgCount:    formData.patient.ecg_count,
         } : null,
         ecgDate:         formData.ecgDate,
         urgency:         formData.urgency,
@@ -214,14 +214,16 @@ export function NewECGPage() {
     setFormData(prev => ({
       ...prev,
       patient: draft.patient ? {
-        id:          draft.patient.id,
-        name:        draft.patient.name,
-        dateOfBirth: draft.patient.dateOfBirth,
-        gender:      draft.patient.gender,
-        phone:       draft.patient.phone,
-        email:       draft.patient.email,
-        ecgCount:    draft.patient.ecgCount,
-      } as Patient : null,
+        id:           draft.patient.id,
+        name:         draft.patient.name,
+        date_of_birth: draft.patient.dateOfBirth || null,
+        gender:       (draft.patient.gender as 'M' | 'F') ?? null,
+        phone:        draft.patient.phone ?? null,
+        email:        draft.patient.email ?? null,
+        ecg_count:    draft.patient.ecgCount,
+        last_ecg_date: null,
+        address: null, notes: null, hospital_id: null, created_at: '',
+      } as PatientItem : null,
       ecgDate:         draft.ecgDate,
       urgency:         draft.urgency,
       clinicalContext: draft.clinicalContext,
@@ -235,7 +237,13 @@ export function NewECGPage() {
     setDraftBanner(null);
   };
 
-  const filteredPatients = searchQuery ? searchPatients(searchQuery) : patients.slice(0, 5);
+  const filteredPatients = patients
+    .filter(p =>
+      !searchQuery ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.phone ?? '').includes(searchQuery)
+    )
+    .slice(0, 8);
 
   // Validation des étapes
   const isStep1Valid = formData.patient !== null;
@@ -329,36 +337,35 @@ export function NewECGPage() {
     setSearchQuery('');
   };
 
-  // Création d'un nouveau patient
-  const handleCreatePatient = () => {
+  // Création d'un nouveau patient via l'API
+  const handleCreatePatient = async () => {
     if (!formData.newPatient.name || !formData.newPatient.gender || !formData.newPatient.dateOfBirth) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
-        variant: "destructive"
-      });
+      toast({ title: 'Erreur', description: 'Veuillez remplir tous les champs obligatoires', variant: 'destructive' });
       return;
     }
 
-    const newPatient = addPatient({
-      name: formData.newPatient.name,
-      dateOfBirth: formData.newPatient.dateOfBirth,
-      gender: formData.newPatient.gender as 'M' | 'F',
-      phone: formData.newPatient.phone || undefined,
-      email: formData.newPatient.email || undefined,
-    });
+    try {
+      const created = await api.post<PatientItem>('/patients', {
+        name:          formData.newPatient.name,
+        date_of_birth: formData.newPatient.dateOfBirth,
+        gender:        formData.newPatient.gender,
+        phone:         formData.newPatient.phone || undefined,
+        email:         formData.newPatient.email || undefined,
+        ...(user?.hospitalId ? { hospital_id: user.hospitalId } : {}),
+      });
 
-    setFormData(prev => ({
-      ...prev,
-      patient: newPatient,
-      isNewPatient: true,
-    }));
+      const newPatient: PatientItem = { ...created, ecg_count: 0, last_ecg_date: null };
 
-    setShowNewPatientDialog(false);
-    toast({
-      title: "Patient créé",
-      description: `${newPatient.name} a été ajouté à votre liste de patients.`
-    });
+      setFormData(prev => ({ ...prev, patient: newPatient, isNewPatient: true }));
+      setShowNewPatientDialog(false);
+      toast({ title: 'Patient créé', description: `${newPatient.name} a été ajouté.` });
+    } catch (err) {
+      toast({
+        title: 'Erreur',
+        description: err instanceof ApiError ? err.message : 'Impossible de créer le patient.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Ajout d'un template de contexte
@@ -401,12 +408,9 @@ export function NewECGPage() {
     try {
       // Construire le FormData multipart (champs + premier fichier)
       const fd = new FormData();
-      fd.append('patient_name',    formData.patient.name);
-      // patient_id n'est pas envoyé : les patients du store local ne sont pas
-      // encore dans la table `patients` de Supabase (UUID requis).
-      // Quand la gestion des patients sera connectée au backend, on pourra
-      // ajouter : fd.append('patient_id', formData.patient.dbId);
-      fd.append('gender',          formData.patient.gender);
+      fd.append('patient_name', formData.patient.name);
+      fd.append('patient_id',   formData.patient.id);
+      fd.append('gender',       formData.patient.gender ?? 'M');
       fd.append('date',            formData.ecgDate);
       fd.append('urgency',         formData.urgency);
       fd.append('medical_center',  'Cabinet médical');
@@ -562,11 +566,11 @@ export function NewECGPage() {
                     <div>
                       <p className="font-semibold text-green-900">{formData.patient.name}</p>
                       <p className="text-sm text-green-700">
-                        {formData.patient.gender === 'M' ? 'Homme' : 'Femme'} • {calculateAge(formData.patient.dateOfBirth)} ans • {formData.patient.id}
+                        {formData.patient.gender === 'M' ? 'Homme' : 'Femme'} • {formData.patient.date_of_birth ? calculateAge(formData.patient.date_of_birth) : '?'} ans • {formData.patient.id}
                       </p>
-                      {formData.patient.ecgCount > 0 && (
+                      {(formData.patient.ecg_count ?? 0) > 0 && (
                         <p className="text-xs text-green-600 mt-1">
-                          {formData.patient.ecgCount} ECG précédent{formData.patient.ecgCount > 1 ? 's' : ''}
+                          {formData.patient.ecg_count} ECG précédent{(formData.patient.ecg_count ?? 0) > 1 ? 's' : ''}
                         </p>
                       )}
                     </div>
@@ -618,18 +622,22 @@ export function NewECGPage() {
                             <div>
                               <p className="font-medium">{patient.name}</p>
                               <p className="text-sm text-gray-500">
-                                {patient.gender === 'M' ? 'H' : 'F'} • {calculateAge(patient.dateOfBirth)} ans • {patient.id}
+                                {patient.gender === 'M' ? 'H' : 'F'} • {patient.date_of_birth ? calculateAge(patient.date_of_birth) : '?'} ans • {patient.id.slice(0, 8)}
                               </p>
                             </div>
                           </div>
-                          {patient.ecgCount > 0 && (
+                          {(patient.ecg_count ?? 0) > 0 && (
                             <Badge variant="secondary" className="text-xs">
-                              {patient.ecgCount} ECG
+                              {patient.ecg_count} ECG
                             </Badge>
                           )}
                         </div>
                       </div>
                     ))
+                  ) : patientsLoading ? (
+                    <div className="p-6 text-center text-gray-400">
+                      <p>Chargement des patients…</p>
+                    </div>
                   ) : (
                     <div className="p-6 text-center text-gray-500">
                       <p>Aucun patient trouvé</p>
@@ -883,7 +891,7 @@ export function NewECGPage() {
                   <p className="text-gray-500">Patient</p>
                   <p className="font-semibold">{formData.patient?.name}</p>
                   <p className="text-gray-600">
-                    {formData.patient?.gender === 'M' ? 'Homme' : 'Femme'} • {formData.patient && calculateAge(formData.patient.dateOfBirth)} ans
+                    {formData.patient?.gender === 'M' ? 'Homme' : 'Femme'} • {formData.patient?.date_of_birth ? calculateAge(formData.patient.date_of_birth) : '?'} ans
                   </p>
                 </div>
                 <div>

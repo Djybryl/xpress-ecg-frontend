@@ -52,15 +52,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useReportStore } from '@/stores/useReportStore';
 import { useToast } from "@/hooks/use-toast";
+import { useReportList } from '@/hooks/useReportList';
 import { cn } from '@/lib/utils';
 
 export function ReportsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { reports, unreadCount, urgentUnreadCount, markAsRead, markAllAsRead } = useReportStore();
-  
+  const { reports, unreadCount, urgentUnreadCount, loading, error, markRead, markAllRead } = useReportList();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unread' | 'read'>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -71,21 +71,20 @@ export function ReportsPage() {
       title: "Export en cours",
       description: `Génération du fichier ${format.toUpperCase()} avec ${filteredReports.length} rapport(s)...`
     });
-    // TODO: Implémenter l'export réel
   };
 
   // Filtrage des rapports
   const filteredReports = reports.filter(report => {
-    const matchesSearch = 
-      report.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.ecgId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch =
+      (report.patient_name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      report.ecg_record_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.conclusion.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = 
+
+    const matchesStatus =
       filterStatus === 'all' ||
-      (filterStatus === 'unread' && !report.isRead) ||
-      (filterStatus === 'read' && report.isRead);
-    
+      (filterStatus === 'unread' && !report.is_read) ||
+      (filterStatus === 'read' && report.is_read);
+
     return matchesSearch && matchesStatus;
   });
 
@@ -105,23 +104,24 @@ export function ReportsPage() {
   };
 
   const handleViewReport = (reportId: string) => {
-    markAsRead(reportId);
+    markRead(reportId);
     navigate(`/medecin/reports/${reportId}`);
   };
 
   const handleDownloadPdf = (reportId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Simulation de téléchargement
     const report = reports.find(r => r.id === reportId);
-    if (report) {
-      markAsRead(reportId);
-      // TODO: Implémenter le vrai téléchargement PDF
-      console.log('Téléchargement du rapport:', reportId);
+    if (report?.pdf_url) {
+      markRead(reportId);
+      window.open(report.pdf_url, '_blank');
     }
   };
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+      )}
       {/* En-tête compact */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -146,7 +146,7 @@ export function ReportsPage() {
         </div>
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={markAllAsRead}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={markAllRead}>
               <CheckCircle className="h-3.5 w-3.5 mr-1.5" />Tout marquer lu
             </Button>
           )}
@@ -181,6 +181,7 @@ export function ReportsPage() {
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               />
             </div>
+            {loading && <span className="text-xs text-gray-400 animate-pulse">Chargement…</span>}
             {[
               { value: 'all',    label: 'Tous',     count: reports.length },
               { value: 'unread', label: 'Non lus',  count: unreadCount },
@@ -219,24 +220,24 @@ export function ReportsPage() {
                   key={report.id} 
                   className={cn(
                     'cursor-pointer transition-colors',
-                    !report.isRead && 'bg-amber-50/50 hover:bg-amber-100/50',
-                    report.isRead && 'hover:bg-gray-50',
-                    report.isUrgent && !report.isRead && 'bg-red-50/50 hover:bg-red-100/50'
+                    !report.is_read && 'bg-amber-50/50 hover:bg-amber-100/50',
+                    report.is_read && 'hover:bg-gray-50',
+                    report.is_urgent && !report.is_read && 'bg-red-50/50 hover:bg-red-100/50'
                   )}
                   onClick={() => handleViewReport(report.id)}
                 >
                   <TableCell>
-                    {!report.isRead && (
+                    {!report.is_read && (
                       <div className={cn(
                         'w-3 h-3 rounded-full',
-                        report.isUrgent ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
+                        report.is_urgent ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
                       )} />
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{report.patientName}</span>
-                      {report.isUrgent && (
+                      <span className="font-medium">{report.patient_name ?? '—'}</span>
+                      {report.is_urgent && (
                         <Badge variant="destructive" className="text-xs">
                           URGENT
                         </Badge>
@@ -244,21 +245,21 @@ export function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-indigo-600 font-medium">{report.ecgId}</span>
+                    <span className="text-indigo-600 font-medium">{report.ecg_record_id.slice(0, 8)}…</span>
                   </TableCell>
                   <TableCell className="text-gray-600">
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {formatDate(report.dateReceived)}
+                      {formatDate(report.sent_at ?? report.created_at)}
                     </div>
                   </TableCell>
                   <TableCell className="text-gray-600">
-                    {report.cardiologist}
+                    {report.cardiologist_name ?? '—'}
                   </TableCell>
                   <TableCell>
                     <p className={cn(
                       'text-sm truncate max-w-[250px]',
-                      report.isUrgent && 'text-red-700 font-medium'
+                      report.is_urgent && 'text-red-700 font-medium'
                     )}>
                       {report.conclusion}
                     </p>

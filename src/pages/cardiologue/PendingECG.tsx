@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useCardiologueStore } from '@/stores/useCardiologueStore';
 import type { CardiologueECG } from '@/stores/useCardiologueStore';
-import { useEcgList } from '@/hooks/useEcgList';
+import { useEcgList, ecgRef } from '@/hooks/useEcgList';
 import type { EcgRecordItem } from '@/hooks/useEcgList';
 import { api, ApiError } from '@/lib/apiClient';
 import { useAuthContext } from '@/providers/AuthProvider';
@@ -65,11 +65,12 @@ const STATUS_LABELS: Record<string, { label: string; classes: string }> = {
 };
 
 /** Convertit un EcgRecordItem backend en CardiologueECG pour l'UI */
-function toCardiologueECG(r: EcgRecordItem): CardiologueECG & { backendStatus: string } {
+function toCardiologueECG(r: EcgRecordItem): CardiologueECG & { backendStatus: string; reference: string } {
   return {
     id:                   r.id,
+    reference:            r.reference,
     patientName:          r.patient_name,
-    patientId:            r.patient_id ?? r.id.slice(0, 8).toUpperCase(),
+    patientId:            r.patient_id ?? '',
     patientAge:           0,
     patientGender:        r.gender ?? 'M',
     referringDoctor:      r.medical_center || 'Médecin référent',
@@ -103,7 +104,7 @@ export function PendingECG() {
   const { records, loading, error, refetch } = useEcgList({});
   const availableECGs = records
     .filter(r => r.status !== 'completed')
-    .map(toCardiologueECG) as (CardiologueECG & { backendStatus: string })[];
+    .map(toCardiologueECG) as (CardiologueECG & { backendStatus: string; reference: string })[];
 
   const [searchTerm, setSearchTerm] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<string>(isUrgentRoute ? 'urgent' : 'all');
@@ -125,7 +126,7 @@ export function PendingECG() {
   const filteredECGs = availableECGs.filter(ecg => {
     const matchesSearch =
       ecg.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ecg.id.toLowerCase().includes(searchTerm.toLowerCase());
+      ecgRef(ecg).toLowerCase().includes(searchTerm.toLowerCase());
     const matchesUrgency = urgencyFilter === 'all' || ecg.urgency === urgencyFilter;
     return matchesSearch && matchesUrgency;
   });
@@ -210,7 +211,7 @@ export function PendingECG() {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <User className="h-4 w-4 text-blue-500 shrink-0" />
-                    <span className="font-mono text-xs text-gray-400">{ecg.id}</span>
+                    <span className="font-mono text-xs text-gray-400">{ecgRef(ecg)}</span>
                     <span className="font-medium text-sm truncate">{ecg.patientName}</span>
                     {ecg.urgency === 'urgent' && (
                       <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0">URGENT</Badge>
@@ -327,7 +328,7 @@ export function PendingECG() {
                           {expandedRow === ecg.id ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         </Button>
                       </TableCell>
-                      <TableCell className="py-1.5 font-mono text-xs font-medium text-indigo-700">{ecg.id}</TableCell>
+                      <TableCell className="py-1.5 font-mono text-xs font-medium text-indigo-700">{ecgRef(ecg)}</TableCell>
                       <TableCell className="py-1.5">
                         <div className="flex items-center gap-1.5">
                           <User className={cn("h-3.5 w-3.5 shrink-0", ecg.urgency === 'urgent' ? "text-red-400" : "text-gray-400")} />

@@ -46,40 +46,36 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usePatientStore, type Patient } from '@/stores/usePatientStore';
 import { useToast } from "@/hooks/use-toast";
-import { useReportStore } from '@/stores/useReportStore';
+import { usePatientList, type PatientItem } from '@/hooks/usePatientList';
 import { PatientECGHistory } from '@/components/patients/PatientECGHistory';
 
 export function PatientsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { patients, searchPatients } = usePatientStore();
-  const { getReportsByPatient } = useReportStore();
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [ecgFilter, setEcgFilter] = useState<'all' | 'with_ecg' | 'recent'>('all');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientItem | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const { patients, loading, error } = usePatientList({ search: searchTerm || undefined, limit: 200 });
 
   const handleExport = (format: 'pdf' | 'excel') => {
     toast({
       title: "Export en cours",
       description: `Génération du fichier ${format.toUpperCase()} avec ${filteredPatients.length} patient(s)...`
     });
-    // TODO: Implémenter l'export réel
   };
 
   // Stats
-  const withECG = patients.filter(p => p.ecgCount > 0).length;
-  const recentECG = patients.filter(p => p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
+  const withECG = patients.filter(p => (p.ecg_count ?? 0) > 0).length;
+  const recentECG = patients.filter(p => p.last_ecg_date && new Date(p.last_ecg_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length;
 
   // Filtrage des patients
-  const basePatients = searchTerm ? searchPatients(searchTerm) : patients;
-  const filteredPatients = basePatients.filter(p => {
-    if (ecgFilter === 'with_ecg') return p.ecgCount > 0;
-    if (ecgFilter === 'recent') return p.lastEcgDate && new Date(p.lastEcgDate) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const filteredPatients = patients.filter(p => {
+    if (ecgFilter === 'with_ecg') return (p.ecg_count ?? 0) > 0;
+    if (ecgFilter === 'recent') return p.last_ecg_date && new Date(p.last_ecg_date) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return true;
   });
 
@@ -89,7 +85,8 @@ export function PatientsPage() {
   const currentPatients = filteredPatients.slice(startIndex, startIndex + itemsPerPage);
 
   // Calcul de l'âge
-  const calculateAge = (dateOfBirth: string) => {
+  const calculateAge = (dateOfBirth: string | null) => {
+    if (!dateOfBirth) return null;
     const today = new Date();
     const birth = new Date(dateOfBirth);
     let age = today.getFullYear() - birth.getFullYear();
@@ -108,11 +105,11 @@ export function PatientsPage() {
     });
   };
 
-  // Rapports du patient sélectionné
-  const patientReports = selectedPatient ? getReportsByPatient(selectedPatient.id) : [];
-
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+      )}
       {/* En-tête compact avec pills stats */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -121,7 +118,7 @@ export function PatientsPage() {
             Mes patients
           </h1>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
-            <span className="font-bold">{patients.length}</span>
+            {loading ? <span className="animate-pulse">…</span> : <span className="font-bold">{patients.length}</span>}
             <span className="opacity-75">total</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
@@ -216,11 +213,11 @@ export function PatientsPage() {
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         'w-10 h-10 rounded-full flex items-center justify-center',
-                        patient.gender === 'M' ? 'bg-blue-100' : 'bg-pink-100'
+                        patient.gender === 'M' ? 'bg-blue-100' : patient.gender === 'F' ? 'bg-pink-100' : 'bg-gray-100'
                       )}>
                         <User className={cn(
                           'h-5 w-5',
-                          patient.gender === 'M' ? 'text-blue-600' : 'text-pink-600'
+                          patient.gender === 'M' ? 'text-blue-600' : patient.gender === 'F' ? 'text-pink-600' : 'text-gray-400'
                         )} />
                       </div>
                       <span className="font-medium">{patient.name}</span>
@@ -231,12 +228,14 @@ export function PatientsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span>{calculateAge(patient.dateOfBirth)} ans</span>
-                      <Badge variant="outline" className={cn(
-                        patient.gender === 'M' ? 'border-blue-200 text-blue-700' : 'border-pink-200 text-pink-700'
-                      )}>
-                        {patient.gender === 'M' ? 'H' : 'F'}
-                      </Badge>
+                      {patient.date_of_birth ? <span>{calculateAge(patient.date_of_birth)} ans</span> : <span className="text-gray-400">-</span>}
+                      {patient.gender && (
+                        <Badge variant="outline" className={cn(
+                          patient.gender === 'M' ? 'border-blue-200 text-blue-700' : 'border-pink-200 text-pink-700'
+                        )}>
+                          {patient.gender === 'M' ? 'H' : 'F'}
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -260,11 +259,11 @@ export function PatientsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      {patient.ecgCount} ECG
+                      {patient.ecg_count ?? 0} ECG
                     </Badge>
                   </TableCell>
                   <TableCell className="text-gray-600">
-                    {patient.lastEcgDate ? formatDate(patient.lastEcgDate) : '-'}
+                    {patient.last_ecg_date ? formatDate(patient.last_ecg_date) : '-'}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-center gap-1" onClick={e => e.stopPropagation()}>
@@ -347,17 +346,17 @@ export function PatientsPage() {
             <DialogTitle className="flex items-center gap-3">
               <div className={cn(
                 'w-12 h-12 rounded-full flex items-center justify-center',
-                selectedPatient?.gender === 'M' ? 'bg-blue-100' : 'bg-pink-100'
+                selectedPatient?.gender === 'M' ? 'bg-blue-100' : selectedPatient?.gender === 'F' ? 'bg-pink-100' : 'bg-gray-100'
               )}>
                 <User className={cn(
                   'h-6 w-6',
-                  selectedPatient?.gender === 'M' ? 'text-blue-600' : 'text-pink-600'
+                  selectedPatient?.gender === 'M' ? 'text-blue-600' : selectedPatient?.gender === 'F' ? 'text-pink-600' : 'text-gray-400'
                 )} />
               </div>
               <div>
                 <p>{selectedPatient?.name}</p>
                 <p className="text-sm font-normal text-gray-500">
-                  {selectedPatient?.id} • {selectedPatient && calculateAge(selectedPatient.dateOfBirth)} ans
+                  {selectedPatient?.id} {selectedPatient?.date_of_birth ? `• ${calculateAge(selectedPatient.date_of_birth)} ans` : ''}
                 </p>
               </div>
             </DialogTitle>
@@ -369,11 +368,11 @@ export function PatientsPage() {
               <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
                   <p className="text-sm text-gray-500">Date de naissance</p>
-                  <p className="font-medium">{formatDate(selectedPatient.dateOfBirth)}</p>
+                  <p className="font-medium">{selectedPatient.date_of_birth ? formatDate(selectedPatient.date_of_birth) : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Sexe</p>
-                  <p className="font-medium">{selectedPatient.gender === 'M' ? 'Masculin' : 'Féminin'}</p>
+                  <p className="font-medium">{selectedPatient.gender === 'M' ? 'Masculin' : selectedPatient.gender === 'F' ? 'Féminin' : '-'}</p>
                 </div>
                 {selectedPatient.phone && (
                   <div>
@@ -398,7 +397,7 @@ export function PatientsPage() {
               {/* Historique ECG */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">Historique ECG ({selectedPatient.ecgCount})</h3>
+                  <h3 className="font-semibold">Historique ECG ({selectedPatient.ecg_count ?? 0})</h3>
                   <Button 
                     size="sm" 
                     className="bg-indigo-600 hover:bg-indigo-700"
@@ -415,7 +414,7 @@ export function PatientsPage() {
                 <div className="max-h-[360px] overflow-y-auto">
                   <PatientECGHistory
                     patientName={selectedPatient.name}
-                    reports={patientReports}
+                    reports={[]}
                     onOpenReport={(reportId) => {
                       setSelectedPatient(null);
                       navigate(`/medecin/reports/${reportId}`);

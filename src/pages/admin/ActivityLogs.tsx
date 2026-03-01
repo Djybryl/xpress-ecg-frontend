@@ -26,14 +26,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAdminStore, type ActivityLog } from '@/stores/useAdminStore';
+import { useActivityLogs } from '@/hooks/useDashboardStats';
+import type { ActivityLogItem } from '@/types/dashboard';
 import { format, parseISO, isToday, isYesterday, subDays, isAfter } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-type LogType = ActivityLog['type'] | 'all';
+type LogType = 'info' | 'warning' | 'error' | 'success' | 'all';
 type DateRange = 'today' | 'yesterday' | '7days' | '30days' | 'all';
+
+type ActivityLog = ActivityLogItem & { type: LogType; userName: string; timestamp: string; userId: string };
 
 const typeConfig: Record<ActivityLog['type'], { label: string; icon: React.ElementType; className: string; dotClass: string }> = {
   info:    { label: 'Info',     icon: Info,          className: 'bg-blue-50 text-blue-700 border-blue-200',    dotClass: 'bg-blue-500' },
@@ -61,7 +64,7 @@ function formatTimestamp(iso: string): string {
 }
 
 export function ActivityLogs() {
-  const { getLogs, addLog } = useAdminStore();
+  const { logs: rawLogs, loading, refetch } = useActivityLogs(200);
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<LogType>('all');
@@ -71,7 +74,14 @@ export function ActivityLogs() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
 
-  const logs = getLogs();
+  // Adapter les logs backend vers le format local
+  const logs: ActivityLog[] = useMemo(() => rawLogs.map(l => ({
+    ...l,
+    type: 'info' as LogType,
+    userName: l.user_id ? `#${l.user_id.slice(0, 8)}` : 'Système',
+    userId: l.user_id ?? '',
+    timestamp: l.created_at,
+  })), [rawLogs]);
 
   const filtered = useMemo(() => {
     const cutoff = getDateRangeFilter(dateRange);
@@ -101,19 +111,18 @@ export function ActivityLogs() {
     error:   logs.filter(l => l.type === 'error').length,
   }), [logs]);
 
-  function handleRefresh() {
+  async function handleRefresh() {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      toast({ title: 'Journaux mis à jour', description: `${logs.length} entrées chargées.` });
-    }, 800);
+    await refetch();
+    setIsRefreshing(false);
+    toast({ title: 'Journaux mis à jour', description: `${logs.length} entrées chargées.` });
   }
 
   function handleExport() {
     const csv = [
-      'Date,Utilisateur,Action,Détails,Type',
+      'Date,Utilisateur,Action,Détails',
       ...filtered.map(l =>
-        [formatTimestamp(l.timestamp), l.userName, l.action, l.details, l.type].join(',')
+        [formatTimestamp(l.timestamp), l.userName, l.action, l.details].join(',')
       )
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -124,18 +133,6 @@ export function ActivityLogs() {
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: 'Export réussi', description: `${filtered.length} entrées exportées en CSV.` });
-  }
-
-  // Simuler un nouvel événement
-  function handleSimulate() {
-    const samples = [
-      { action: 'ECG analysé', details: 'ECG-2024-0500 — Patient Test', type: 'success' as const, userId: 'USR-001', userName: 'Dr. Sophie Bernard' },
-      { action: 'Tentative de connexion échouée', details: 'IP: 192.168.1.100 — 3 tentatives', type: 'error' as const, userId: 'SYS', userName: 'Système' },
-      { action: 'Rapport envoyé', details: 'ECG-2024-0498 — Rapport envoyé à Dr. Martin', type: 'info' as const, userId: 'USR-003', userName: 'Marie Dubois' },
-    ];
-    const sample = samples[Math.floor(Math.random() * samples.length)];
-    addLog(sample);
-    toast({ title: 'Événement simulé', description: sample.action });
   }
 
   return (
@@ -167,7 +164,6 @@ export function ActivityLogs() {
           })}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleSimulate}>+ Simuler</Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExport}>
             <Download className="h-3.5 w-3.5 mr-1.5" /> CSV
           </Button>
@@ -224,13 +220,19 @@ export function ActivityLogs() {
           )}
         </div>
         <CardContent className="p-0">
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="py-16 text-center text-gray-400">
+              <Activity className="h-12 w-12 mx-auto mb-3 opacity-30 animate-pulse" />
+              <p className="text-sm">Chargement des journaux…</p>
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="py-16 text-center text-gray-400">
               <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p className="font-medium">Aucun journal trouvé</p>
               <p className="text-sm mt-1">Modifiez les filtres pour élargir la recherche</p>
             </div>
-          ) : (
+          ) : null}
+          {!loading && paginated.length > 0 && (
             <div className="divide-y">
               {paginated.map((log) => {
                 const cfg = typeConfig[log.type];
@@ -283,7 +285,7 @@ export function ActivityLogs() {
                           </div>
                           <div>
                             <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Utilisateur</p>
-                            <p className="text-gray-700">{log.userName} <span className="text-gray-400">({log.userId})</span></p>
+                            <p className="text-gray-700">{log.userName} {log.userId && <span className="text-gray-400">({log.userId.slice(0, 8)}…)</span>}</p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Horodatage précis</p>
@@ -303,7 +305,7 @@ export function ActivityLogs() {
           )}
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {!loading && totalPages > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t bg-gray-50">
               <p className="text-sm text-gray-500">
                 Page {page} / {totalPages} — {filtered.length} entrée{filtered.length !== 1 ? 's' : ''}

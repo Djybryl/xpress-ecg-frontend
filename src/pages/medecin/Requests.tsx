@@ -71,6 +71,7 @@ import { cn } from '@/lib/utils';
 
 interface ECGRequest {
   id: string;
+  reference: string;
   patient_name: string;
   patient_id?: string;
   patient_gender: 'M' | 'F';
@@ -96,6 +97,7 @@ function mapStatus(s: EcgRecordItem['status']): ECGRequest['status'] {
 function toECGRequest(r: EcgRecordItem): ECGRequest {
   return {
     id:               r.id,
+    reference:        r.reference,
     patient_name:     r.patient_name,
     patient_id:       r.patient_id ?? undefined,
     patient_gender:   r.gender ?? 'M',
@@ -248,7 +250,7 @@ export function RequestsPage() {
   const filteredRequests = requests.filter(request => {
     const matchesSearch =
       request.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.id.toLowerCase().includes(searchTerm.toLowerCase());
+      request.reference.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -324,7 +326,7 @@ export function RequestsPage() {
     
     toast({
       title: "Relance envoyée",
-      description: `Une relance a été envoyée pour ${selectedRequest.id}.`
+      description: `Une relance a été envoyée pour ${selectedRequest.reference}.`
     });
     
     setShowRelanceDialog(false);
@@ -455,7 +457,7 @@ export function RequestsPage() {
                           )}
                         </div>
                         <p className="text-sm text-gray-500">
-                          {request.id} • {request.patient_gender === 'M' ? 'H' : 'F'}{request.patient_age ? `, ${request.patient_age} ans` : ''}
+                          {request.reference} • {request.patient_gender === 'M' ? 'H' : 'F'}{request.patient_age ? `, ${request.patient_age} ans` : ''}
                         </p>
                       </div>
 
@@ -685,7 +687,7 @@ export function RequestsPage() {
             {selectedRequest && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm font-medium text-amber-800">
-                  {selectedRequest.id} - {selectedRequest.patient_name}
+                  {selectedRequest.reference} - {selectedRequest.patient_name}
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
                   En attente depuis {getWaitingTime(selectedRequest.date_sent, selectedRequest.status).text}

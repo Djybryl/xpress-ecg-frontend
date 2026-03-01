@@ -50,17 +50,19 @@ import type { ECGQueueItem } from '@/stores/useECGQueueStore';
 import { useEcgList } from '@/hooks/useEcgList';
 import type { EcgRecordItem } from '@/hooks/useEcgList';
 import { api, ApiError } from '@/lib/apiClient';
+
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-/** Convertit un EcgRecordItem backend en ECGQueueItem pour l'UI */
-function toQueueItem(r: EcgRecordItem): ECGQueueItem {
+/** Convertit un EcgRecordItem backend en ECGQueueItem + champ reference pour l'UI */
+function toQueueItem(r: EcgRecordItem): ECGQueueItem & { reference: string } {
   return {
     id:                   r.id,
+    reference:            r.reference,
     patientName:          r.patient_name,
-    patientId:            r.patient_id ?? r.id.slice(0, 8).toUpperCase(),
+    patientId:            r.patient_id ?? '',
     patientGender:        r.gender ?? 'M',
     patientAge:           0,
     referringDoctor:      r.medical_center || 'Médecin référent',
@@ -95,13 +97,13 @@ export function ECGInbox() {
   const [itemToReject, setItemToReject] = useState<string | null>(null);
 
   // ECG en attente de validation (depuis API)
-  const receivedECGs = records.map(toQueueItem);
+  const receivedECGs: (ECGQueueItem & { reference: string })[] = records.map(toQueueItem);
 
   // Filtrage
   const filteredECGs = receivedECGs.filter(ecg => {
     const matchesSearch = 
       ecg.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ecg.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ecg.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ecg.referringDoctor.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesUrgency = urgencyFilter === 'all' || ecg.urgency === urgencyFilter;
     return matchesSearch && matchesUrgency;
@@ -281,7 +283,7 @@ export function ECGInbox() {
                         </Button>
                       </TableCell>
                       <TableCell className="font-mono text-sm font-medium">
-                        {ecg.id}
+                        {ecg.reference}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

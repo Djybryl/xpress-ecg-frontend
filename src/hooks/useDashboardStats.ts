@@ -49,12 +49,21 @@ export function useActivityLogs(limit = 5) {
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get<ActivityLogItem[]>('/dashboard/activity-logs', { limit })
-      .then(setLogs)
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false));
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get<ActivityLogItem[]>('/dashboard/activity-logs', { limit });
+      setLogs(Array.isArray(data) ? data : []);
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
   }, [limit]);
 
-  return { logs, loading };
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  return { logs, loading, refetch: fetchLogs };
 }

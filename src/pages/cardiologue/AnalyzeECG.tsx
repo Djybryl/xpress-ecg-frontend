@@ -67,6 +67,7 @@ import { useAuthContext } from '@/providers/AuthProvider';
 import { useToast } from "@/hooks/use-toast";
 import { api } from '@/lib/apiClient';
 import type { EcgRecordItem } from '@/hooks/useEcgList';
+import { ecgRef } from '@/hooks/useEcgList';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -182,8 +183,9 @@ export function AnalyzeECG() {
       .then(async (data) => {
         const mapped = {
           id:                   data.id,
+          reference:            data.reference,
           patientName:          data.patient_name,
-          patientId:            data.patient_id ?? data.id.slice(0, 8).toUpperCase(),
+          patientId:            data.patient_id ?? '',
           patientAge:           0,
           patientGender:        (data.gender ?? 'M') as 'M' | 'F',
           referringDoctor:      data.medical_center || 'Médecin référent',
@@ -472,25 +474,34 @@ export function AnalyzeECG() {
     }
   };
 
-  const handleConfirmComplete = (goToNext = false) => {
-    if (ecgId) {
-      const fullMeasurements: ECGMeasurements = {
-        heartRate: measurements.heartRate,
-        prInterval: measurements.prInterval,
-        qrsDuration: measurements.qrsDuration,
-        qtInterval: measurements.qtInterval,
-        qtcInterval: measurements.qtcInterval,
-        axis: `P: ${measurements.pAxis}° | QRS: ${measurements.qrsAxis}° | T: ${measurements.tAxis}°`,
-        rhythm: measurements.rhythm,
-      };
+  const handleConfirmComplete = async (goToNext = false) => {
+    if (!ecgId) return;
+    setConfirmDialogOpen(false);
 
-      const fullInterpretation: ECGInterpretation = {
-        findings: [],
-        conclusion: interpretation,
-        recommendations: '',
-        isNormal: aiAnalysis?.isNormal ?? true,
-      };
+    const fullMeasurements: ECGMeasurements = {
+      heartRate: measurements.heartRate,
+      prInterval: measurements.prInterval,
+      qrsDuration: measurements.qrsDuration,
+      qtInterval: measurements.qtInterval,
+      qtcInterval: measurements.qtcInterval,
+      axis: `P: ${measurements.pAxis}° | QRS: ${measurements.qrsAxis}° | T: ${measurements.tAxis}°`,
+      rhythm: measurements.rhythm,
+    };
 
+    const fullInterpretation: ECGInterpretation = {
+      findings: [],
+      conclusion: interpretation,
+      recommendations: '',
+      isNormal: aiAnalysis?.isNormal ?? true,
+    };
+
+    try {
+      await api.post(`/ecg-records/${ecgId}/complete-analysis`, {
+        interpretation: fullInterpretation,
+        measurements: fullMeasurements,
+      });
+
+      // Mettre à jour le store local pour la cohérence de l'UI
       completeAnalysis(ecgId, fullMeasurements, fullInterpretation);
 
       toast({
@@ -506,8 +517,10 @@ export function AnalyzeECG() {
       } else {
         navigate('/cardiologue');
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de la sauvegarde.';
+      toast({ title: 'Erreur', description: msg, variant: 'destructive' });
     }
-    setConfirmDialogOpen(false);
   };
 
   const handleAcceptAISuggestion = () => {
@@ -562,7 +575,7 @@ export function AnalyzeECG() {
             <div className="flex items-center gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900">{ecg.id}</span>
+                  <span className="font-semibold text-gray-900">{ecgRef(ecg)}</span>
                   {ecg.urgency === 'urgent' && (
                     <Badge className="bg-red-500 text-white text-xs px-2 py-0.5 animate-pulse">
                       URGENT
@@ -635,7 +648,7 @@ export function AnalyzeECG() {
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className="font-mono text-[10px]">{idx + 1}. {allECG.id}</span>
+                      <span className="font-mono text-[10px]">{idx + 1}. {ecgRef(allECG)}</span>
                       {allECG.urgency === 'urgent' && (
                         <AlertTriangle className="h-3 w-3 text-red-500" />
                       )}
@@ -1471,7 +1484,7 @@ Utilisez les raccourcis:
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg h-64 flex items-center justify-center border-2 border-indigo-200 relative overflow-hidden">
                       <Activity className="h-16 w-16 text-indigo-300" />
                       <div className="absolute bottom-2 right-2 text-[10px] text-gray-400">
-                        ECG {ecg.id}
+                        ECG {ecgRef(ecg)}
                       </div>
                     </div>
                   </div>
@@ -1776,7 +1789,7 @@ Utilisez les raccourcis:
               Demander un Second Avis
             </DialogTitle>
             <DialogDescription>
-              ECG {ecg.id} • {ecg.patientName} • {ecg.patientAge} ans
+              ECG {ecgRef(ecg)} • {ecg.patientName} • {ecg.patientAge} ans
             </DialogDescription>
           </DialogHeader>
           

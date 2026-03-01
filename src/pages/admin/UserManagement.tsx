@@ -62,34 +62,43 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { 
-  useAdminStore, 
-  roleLabels, 
-  statusLabels, 
-  roleColors, 
-  statusColors,
-  type SystemUser,
-  type UserRole,
-  type UserStatus
-} from '@/stores/useAdminStore';
+import { useUserList, type SystemUserItem, type CreateUserInput, type UpdateUserInput } from '@/hooks/useUserList';
+import { useHospitalList } from '@/hooks/useHospitalList';
 import { useToast } from "@/hooks/use-toast";
+
+type UserRole = SystemUserItem['role'];
+type UserStatus = SystemUserItem['status'];
+
+const roleLabels: Record<UserRole, string> = {
+  cardiologue: 'Cardiologue',
+  medecin: 'Médecin',
+  secretaire: 'Secrétaire',
+  admin: 'Admin',
+};
+const statusLabels: Record<UserStatus, string> = {
+  active: 'Actif',
+  inactive: 'Inactif',
+  pending: 'En attente',
+};
+const roleColors: Record<UserRole, string> = {
+  cardiologue: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  medecin: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  secretaire: 'bg-amber-100 text-amber-700 border-amber-200',
+  admin: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+const statusColors: Record<UserStatus, string> = {
+  active: 'bg-green-100 text-green-700 border-green-200',
+  inactive: 'bg-gray-100 text-gray-600 border-gray-200',
+  pending: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+};
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 export function UserManagement() {
   const { toast } = useToast();
-  const { 
-    users, 
-    hospitals,
-    getStats,
-    addUser, 
-    updateUser, 
-    deleteUser,
-    activateUser,
-    deactivateUser 
-  } = useAdminStore();
-  const stats = getStats();
+  const { users, loading, error, createUser, updateUser, deleteUser, activateUser, deactivateUser } = useUserList();
+  const { hospitals } = useHospitalList();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -117,13 +126,15 @@ export function UserManagement() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editDialogOpen]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SystemUserItem | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     role: 'medecin' as UserRole,
     status: 'active' as UserStatus,
     hospitalId: '',
@@ -131,7 +142,7 @@ export function UserManagement() {
     specialty: ''
   });
 
-  // Filtrage
+  // Filtrage (côté client après chargement)
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -149,11 +160,15 @@ export function UserManagement() {
   const pendingCount = users.filter(u => u.status === 'pending').length;
   const inactiveCount = users.filter(u => u.status === 'inactive').length;
 
+  const getHospitalName = (hospitalId: string | null) =>
+    hospitals.find(h => h.id === hospitalId)?.name ?? null;
+
   const handleOpenNew = () => {
     setIsNewUser(true);
     setFormData({
       name: '',
       email: '',
+      password: '',
       role: 'medecin',
       status: 'active',
       hospitalId: '',
@@ -163,54 +178,65 @@ export function UserManagement() {
     setEditDialogOpen(true);
   };
 
-  const handleOpenEdit = (user: SystemUser) => {
+  const handleOpenEdit = (user: SystemUserItem) => {
     setIsNewUser(false);
     setSelectedUser(user);
     setFormData({
       name: user.name,
       email: user.email,
+      password: '',
       role: user.role,
       status: user.status,
-      hospitalId: user.hospitalId || '',
+      hospitalId: user.hospital_id || '',
       phone: user.phone || '',
       specialty: user.specialty || ''
     });
     setEditDialogOpen(true);
   };
 
-  const handleSave = () => {
-    const hospital = hospitals.find(h => h.id === formData.hospitalId);
-    
-    if (isNewUser) {
-      addUser({
-        ...formData,
-        hospital: hospital?.name,
-      });
-      toast({
-        title: "Utilisateur créé",
-        description: `${formData.name} a été ajouté avec succès.`
-      });
-    } else if (selectedUser) {
-      updateUser(selectedUser.id, {
-        ...formData,
-        hospital: hospital?.name,
-      });
-      toast({
-        title: "Utilisateur modifié",
-        description: `Les informations de ${formData.name} ont été mises à jour.`
-      });
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (isNewUser) {
+        const input: CreateUserInput = {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          ...(formData.hospitalId ? { hospital_id: formData.hospitalId } : {}),
+          ...(formData.phone ? { phone: formData.phone } : {}),
+          ...(formData.specialty ? { specialty: formData.specialty } : {}),
+        };
+        await createUser(input);
+        toast({ title: 'Utilisateur créé', description: `${formData.name} a été ajouté avec succès.` });
+      } else if (selectedUser) {
+        const input: UpdateUserInput = {
+          name: formData.name,
+          role: formData.role,
+          status: formData.status,
+          hospital_id: formData.hospitalId || null,
+          phone: formData.phone || null,
+          specialty: formData.specialty || null,
+        };
+        await updateUser(selectedUser.id, input);
+        toast({ title: 'Utilisateur modifié', description: `Les informations de ${formData.name} ont été mises à jour.` });
+      }
+      setEditDialogOpen(false);
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setEditDialogOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (selectedUser) {
-      deleteUser(selectedUser.id);
-      toast({
-        title: "Utilisateur supprimé",
-        description: `${selectedUser.name} a été supprimé.`,
-        variant: "destructive"
-      });
+      try {
+        await deleteUser(selectedUser.id);
+        toast({ title: 'Utilisateur supprimé', description: `${selectedUser.name} a été supprimé.`, variant: 'destructive' });
+      } catch {
+        toast({ title: 'Erreur', description: 'Impossible de supprimer.', variant: 'destructive' });
+      }
     }
     setDeleteDialogOpen(false);
     setSelectedUser(null);
@@ -218,24 +244,25 @@ export function UserManagement() {
 
   useEffect(() => { setPage(1); }, [searchTerm, roleFilter, statusFilter]);
 
-  const handleToggleStatus = (user: SystemUser) => {
-    if (user.status === 'active') {
-      deactivateUser(user.id);
-      toast({
-        title: "Utilisateur désactivé",
-        description: `${user.name} a été désactivé.`
-      });
-    } else {
-      activateUser(user.id);
-      toast({
-        title: "Utilisateur activé",
-        description: `${user.name} a été activé.`
-      });
+  const handleToggleStatus = async (user: SystemUserItem) => {
+    try {
+      if (user.status === 'active') {
+        await deactivateUser(user.id);
+        toast({ title: 'Utilisateur désactivé', description: `${user.name} a été désactivé.` });
+      } else {
+        await activateUser(user.id);
+        toast({ title: 'Utilisateur activé', description: `${user.name} a été activé.` });
+      }
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de modifier le statut.', variant: 'destructive' });
     }
   };
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>
+      )}
       {/* En-tête + Pills + Filtres */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -244,7 +271,7 @@ export function UserManagement() {
             Utilisateurs
           </h1>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-xs font-medium text-indigo-700">
-            <span className="font-bold">{users.length}</span>
+            {loading ? <span className="inline-block w-5 h-3 bg-indigo-200 rounded animate-pulse" /> : <span className="font-bold">{users.length}</span>}
             <span className="opacity-75">total</span>
           </span>
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-green-200 bg-green-50 text-xs font-medium text-green-700">
@@ -298,7 +325,9 @@ export function UserManagement() {
               <SelectItem value="inactive">Inactifs</SelectItem>
             </SelectContent>
           </Select>
-          <span className="ml-auto text-xs text-gray-400">{filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}</span>
+          <span className="ml-auto text-xs text-gray-400">
+            {loading ? 'Chargement…' : `${filteredUsers.length} utilisateur${filteredUsers.length > 1 ? 's' : ''}`}
+          </span>
           <Button onClick={handleOpenNew} size="sm" className="bg-indigo-600 hover:bg-indigo-700 h-8 text-xs" title="Ctrl+N">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Nouveau
@@ -318,7 +347,11 @@ export function UserManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-400">Chargement…</TableCell>
+                </TableRow>
+              ) : filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     Aucun utilisateur trouvé
@@ -353,10 +386,10 @@ export function UserManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.hospital ? (
+                      {user.hospital_id ? (
                         <div className="flex items-center gap-1 text-sm">
                           <Building2 className="h-4 w-4 text-gray-400" />
-                          {user.hospital}
+                          {getHospitalName(user.hospital_id) ?? user.hospital_id}
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -371,23 +404,16 @@ export function UserManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.lastLogin ? (
+                      {user.last_login ? (
                         <span className="text-sm text-gray-600">
-                          {formatDistanceToNow(parseISO(user.lastLogin), { addSuffix: true, locale: fr })}
+                          {formatDistanceToNow(parseISO(user.last_login), { addSuffix: true, locale: fr })}
                         </span>
                       ) : (
                         <span className="text-gray-400">Jamais</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {user.ecgCount !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          <Activity className="h-4 w-4 text-gray-400" />
-                          <span>{user.ecgCount}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      <span className="text-gray-400">-</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -473,8 +499,20 @@ export function UserManagement() {
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 placeholder="jean.dupont@hopital.fr"
+                disabled={!isNewUser}
               />
             </div>
+            {isNewUser && (
+              <div className="space-y-2">
+                <Label>Mot de passe</Label>
+                <Input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Rôle</Label>
@@ -546,11 +584,11 @@ export function UserManagement() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               Annuler
             </Button>
-            <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700">
-              {isNewUser ? 'Créer' : 'Enregistrer'}
+            <Button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700" disabled={saving}>
+              {saving ? 'Sauvegarde…' : isNewUser ? 'Créer' : 'Enregistrer'}
             </Button>
           </DialogFooter>
         </DialogContent>

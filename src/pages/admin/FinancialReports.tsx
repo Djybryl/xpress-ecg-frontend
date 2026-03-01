@@ -20,17 +20,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEconomyStore } from '@/stores/useEconomyStore';
-import { useAdminStore } from '@/stores/useAdminStore';
+import { useEmoluments, useFinancialConfig } from '@/hooks/useFinancials';
+import { useHospitalList } from '@/hooks/useHospitalList';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export function FinancialReports() {
-  const { emoluments, tarifConfig, getMonthlyReport } = useEconomyStore();
-  const { hospitals } = useAdminStore();
+  const { emoluments, period: hookPeriod, setPeriod: setHookPeriod, loading } = useEmoluments();
+  const { tarif: tarifConfig } = useFinancialConfig();
+  const { hospitals } = useHospitalList();
   const { toast } = useToast();
 
-  const [selectedPeriod, setSelectedPeriod] = useState('2024-12');
+  const [selectedPeriod, setSelectedPeriod] = useState(hookPeriod);
+
+  const handlePeriodChange = (p: string) => {
+    setSelectedPeriod(p);
+    setHookPeriod(p);
+  };
   const [selectedRole, setSelectedRole] = useState<'all' | 'cardiologue' | 'medecin'>('all');
   const [selectedHospital, setSelectedHospital] = useState<string>('all');
 
@@ -41,7 +47,7 @@ export function FinancialReports() {
 
   // Calculs pour la période
   const periodData = useMemo(() => {
-    let filtered = emoluments.filter(e => e.period === selectedPeriod);
+    let filtered = [...emoluments];
     
     if (selectedRole !== 'all') {
       filtered = filtered.filter(e => e.userRole === selectedRole);
@@ -69,7 +75,7 @@ export function FinancialReports() {
       ecgCount,
       filtered,
     };
-  }, [emoluments, selectedPeriod, selectedRole, selectedHospital, tarifConfig]);
+  }, [emoluments, selectedRole, selectedHospital, tarifConfig]);
 
   // Top performers
   const topPerformers = useMemo(() => {
@@ -153,15 +159,18 @@ export function FinancialReports() {
 
       {/* Filtres */}
       <div className="flex items-center gap-3 bg-white p-4 rounded-lg border">
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+        <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
           <SelectTrigger className="w-[180px]">
             <Calendar className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Période" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="2024-12">Décembre 2024</SelectItem>
-            <SelectItem value="2024-11">Novembre 2024</SelectItem>
-            <SelectItem value="2024-10">Octobre 2024</SelectItem>
+            {Array.from({ length: 6 }, (_, i) => {
+              const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
+              const v = d.toISOString().slice(0, 7);
+              const l = d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' });
+              return <SelectItem key={v} value={v}>{l.charAt(0).toUpperCase() + l.slice(1)}</SelectItem>;
+            })}
           </SelectContent>
         </Select>
 
